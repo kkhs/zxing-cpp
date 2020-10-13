@@ -21,47 +21,13 @@
 #include <stdexcept>
 #include <emscripten/bind.h>
 
-#define STB_IMAGE_IMPLEMENTATION
-#include "stb_image.h"
-
 struct ReadResult
 {
 	std::string format;
+	std::vector<uint8_t> rawBytes;
 	std::wstring text;
 	std::string error;
 };
-
-ReadResult readBarcodeFromImage(int bufferPtr, int bufferLength, bool tryHarder, std::string format)
-{
-	using namespace ZXing;
-	try {
-		DecodeHints hints;
-		hints.setTryHarder(tryHarder);
-		hints.setTryRotate(tryHarder);
-		hints.setFormats(BarcodeFormatsFromString(format));
-
-		int width, height, channels;
-		std::unique_ptr<stbi_uc, void (*)(void*)> buffer(
-			stbi_load_from_memory(reinterpret_cast<const unsigned char*>(bufferPtr), bufferLength, &width, &height,
-								  &channels, 4),
-			stbi_image_free);
-		if (buffer == nullptr) {
-			return { "", L"", "Error loading image" };
-		}
-
-		auto result = ReadBarcode({buffer.get(), width, height, ImageFormat::RGBX}, hints);
-		if (result.isValid()) {
-			return { ToString(result.format()), result.text(), "" };
-		}
-	}
-	catch (const std::exception& e) {
-		return { "", L"", e.what() };
-	}
-	catch (...) {
-		return { "", L"", "Unknown error" };
-	}
-	return {};
-}
 
 ReadResult readBarcodeFromPixmap(int bufferPtr, int imgWidth, int imgHeight, bool tryHarder, std::string format)
 {
@@ -76,14 +42,14 @@ ReadResult readBarcodeFromPixmap(int bufferPtr, int imgWidth, int imgHeight, boo
 			ReadBarcode({reinterpret_cast<uint8_t*>(bufferPtr), imgWidth, imgHeight, ImageFormat::RGBX}, hints);
 
 		if (result.isValid()) {
-			return { ToString(result.format()), result.text(), "" };
+			return { ToString(result.format()), result.rawBytes(), result.text(),  };
 		}
 	}
 	catch (const std::exception& e) {
-		return { "", L"", e.what() };
+		return { "", {}, L"", e.what() };
 	}
 	catch (...) {
-		return { "", L"", "Unknown error" };
+		return { "", {}, L"", "Unknown error" };
 	}
 	return {};
 }
@@ -92,16 +58,14 @@ EMSCRIPTEN_BINDINGS(BarcodeReader)
 {
 	using namespace emscripten;
 
+	register_vector<uint8_t>("ByteArray");
+
 	value_object<ReadResult>("ReadResult")
 	        .field("format", &ReadResult::format)
+			.field("rawBytes", &ReadResult::rawBytes)
 	        .field("text", &ReadResult::text)
 	        .field("error", &ReadResult::error)
 	        ;
 
-	function("readBarcodeFromImage", &readBarcodeFromImage);
 	function("readBarcodeFromPixmap", &readBarcodeFromPixmap);
-
-	// obsoletes
-	function("readBarcode", &readBarcodeFromImage);
-	function("readBarcodeFromPng", &readBarcodeFromImage);
 }
