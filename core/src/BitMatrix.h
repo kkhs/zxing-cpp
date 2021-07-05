@@ -271,11 +271,11 @@ public:
 		return a._width == b._width && a._height == b._height && a._rowSize == b._rowSize && a._bits == b._bits;
 	}
 
-	bool isIn(PointI p, int b = 0) const noexcept
+	template <typename T>
+	bool isIn(PointT<T> p, int b = 0) const noexcept
 	{
 		return b <= p.x && p.x < width() - b && b <= p.y && p.y < height() - b;
 	}
-	bool isIn(PointF p) const  noexcept { return isIn(PointI(p)); }
 
 	bool get(PointI p) const { return get(p.x, p.y); }
 	bool get(PointF p) const { return get(PointI(p)); }
@@ -303,7 +303,7 @@ BitMatrix Inflate(BitMatrix&& input, int width, int height, int quietZone);
  * @param subSampling typically the module size
  * @return deflated input
  */
-BitMatrix Deflate(const BitMatrix& matrix, int width, int height, int top, int left, int subSampling);
+BitMatrix Deflate(const BitMatrix& matrix, int width, int height, float top, float left, float subSampling);
 
 template<typename T>
 BitMatrix ToBitMatrix(const Matrix<T>& in, T trueValue = {true})

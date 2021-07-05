@@ -16,10 +16,10 @@
 * limitations under the License.
 */
 
-#include <string>
+#include <list>
 #include <map>
 #include <memory>
-#include <list>
+#include <string>
 
 namespace ZXing {
 
@@ -42,7 +42,7 @@ public:
 		/**
 		* Unspecified, application-specific metadata. Maps to an unspecified {@link CustomData}.
 		*/
-		OTHER,
+		OTHER [[deprecated]],
 
 		/**
 		* Denotes the likely approximate orientation of the barcode in the image. This value
@@ -62,58 +62,58 @@ public:
 		* <p>This maps to a {@link java.util.List} of byte arrays corresponding to the
 		* raw bytes in the byte segments in the barcode, in order.</p>
 		*/
-		BYTE_SEGMENTS,
+		BYTE_SEGMENTS [[deprecated]],
 
 		/**
 		* Error correction level used, if applicable. The value type depends on the
 		* format, but is typically a String.
 		*/
-		ERROR_CORRECTION_LEVEL,
+		ERROR_CORRECTION_LEVEL [[deprecated]],
 
 		/**
 		* For some periodicals, indicates the issue number as an {@link Integer}.
 		*/
-		ISSUE_NUMBER,
+		ISSUE_NUMBER [[deprecated]],
 
 		/**
 		* For some products, indicates the suggested retail price in the barcode as a
 		* formatted {@link String}.
 		*/
-		SUGGESTED_PRICE,
+		SUGGESTED_PRICE [[deprecated]],
 
 		/**
 		* For some products, the possible country of manufacture as a {@link String} denoting the
 		* ISO country code. Some map to multiple possible countries, like "US/CA".
 		*/
-		POSSIBLE_COUNTRY,
+		POSSIBLE_COUNTRY [[deprecated]],
 
 		/**
 		* For some products, the extension text
 		*/
-		UPC_EAN_EXTENSION,
+		UPC_EAN_EXTENSION [[deprecated]],
 
 		/**
 		* PDF417-specific metadata
 		*/
-		PDF417_EXTRA_METADATA,
+		PDF417_EXTRA_METADATA [[deprecated]],
 
 		/**
 		* If the code format supports structured append and the current scanned code is part of one then the
 		* sequence number is given with it.
 		*/
-		STRUCTURED_APPEND_SEQUENCE,
+		STRUCTURED_APPEND_SEQUENCE [[deprecated]],
 
 		/**
 		* If the code format supports structured append and the current scanned code is part of one then the
 		* total code count is given with it.
 		*/
-		STRUCTURED_APPEND_CODE_COUNT,
+		STRUCTURED_APPEND_CODE_COUNT [[deprecated]],
 
 		/**
 		* If the code format supports structured append and the current scanned code is part of one then the
 		* parity is given with it.
 		*/
-		STRUCTURED_APPEND_PARITY,
+		STRUCTURED_APPEND_PARITY [[deprecated]],
 
 	};
 

@@ -16,15 +16,16 @@
 */
 
 #include <algorithm>
-#include <iterator>
-#include <initializer_list>
-#include <numeric>
 #include <cstring>
+#include <initializer_list>
+#include <iterator>
+#include <numeric>
+#include <string>
 
 namespace ZXing {
 
 template <typename Container, typename Value>
-auto Find(const Container& c, const Value& v) -> decltype(std::begin(c)) {
+auto Find(Container& c, const Value& v) -> decltype(std::begin(c)) {
 	return std::find(std::begin(c), std::end(c), v);
 }
 

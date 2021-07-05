@@ -26,16 +26,14 @@
 */
 
 #include "ODRSSExpandedBinaryDecoder.h"
-#include "ODRSSGenericAppIdDecoder.h"
+
 #include "BitArray.h"
 #include "DecodeStatus.h"
-#include "ZXStrConvWorkaround.h"
+#include "ODRSSGenericAppIdDecoder.h"
 
 #include <functional>
 
-namespace ZXing {
-namespace OneD {
-namespace RSS {
+namespace ZXing::OneD::DataBar {
 
 static const int AI01_GTIN_SIZE = 40;
 
@@ -108,8 +106,12 @@ static void AI01EncodeCompressedWeight(std::string& buffer, const BitArray& bits
 static std::string
 DecodeAI01AndOtherAIs(const BitArray& bits)
 {
-	static const int HEADER_SIZE = 1 + 1 + 2; //first bit encodes the linkage flag,
-													  //the second one is the encodation method, and the other two are for the variable length
+	static const int HEADER_SIZE = 1 + 1 + 2; // first bit encodes the linkage flag, the second one is the encodation
+											  // method, and the other two are for the variable length
+
+	if (bits.size() < HEADER_SIZE + 44)
+		return {};
+
 	std::string buffer;
 	buffer.append("(01)");
 	int initialGtinPosition = Size(buffer);
@@ -117,10 +119,10 @@ DecodeAI01AndOtherAIs(const BitArray& bits)
 	buffer.append(std::to_string(firstGtinDigit));
 
 	AI01EncodeCompressedGtinWithoutAI(buffer, bits, HEADER_SIZE + 4, initialGtinPosition);
-	if (StatusIsOK(GenericAppIdDecoder::DecodeAllCodes(bits, HEADER_SIZE + 44, buffer))) {
+	if (StatusIsOK(DecodeAppIdAllCodes(bits, HEADER_SIZE + 44, buffer))) {
 		return buffer;
 	}
-	return std::string();
+	return {};
 }
 
 static std::string
@@ -128,7 +130,7 @@ DecodeAnyAI(const BitArray& bits)
 {
 	static const int HEADER_SIZE = 2 + 1 + 2;
 	std::string buffer;
-	if (StatusIsOK(GenericAppIdDecoder::DecodeAllCodes(bits, HEADER_SIZE, buffer))) {
+	if (StatusIsOK(DecodeAppIdAllCodes(bits, HEADER_SIZE, buffer))) {
 		return buffer;
 	}
 	return std::string();
@@ -194,7 +196,7 @@ DecodeAI01392x(const BitArray& bits)
 	buffer.append(std::to_string(lastAIdigit));
 	buffer.push_back(')');
 
-	if (StatusIsOK(GenericAppIdDecoder::DecodeGeneralPurposeField(bits, HEADER_SIZE + AI01_GTIN_SIZE + LAST_DIGIT_SIZE, buffer))) {
+	if (StatusIsOK(DecodeAppIdGeneralPurposeField(bits, HEADER_SIZE + AI01_GTIN_SIZE + LAST_DIGIT_SIZE, buffer))) {
 		return buffer;
 	}
 	return std::string();
@@ -229,7 +231,7 @@ DecodeAI01393x(const BitArray& bits)
 	}
 	buffer.append(std::to_string(firstThreeDigits));
 
-	if (StatusIsOK(GenericAppIdDecoder::DecodeGeneralPurposeField(bits, HEADER_SIZE + AI01_GTIN_SIZE + LAST_DIGIT_SIZE + FIRST_THREE_DIGITS_SIZE, buffer))) {
+	if (StatusIsOK(DecodeAppIdGeneralPurposeField(bits, HEADER_SIZE + AI01_GTIN_SIZE + LAST_DIGIT_SIZE + FIRST_THREE_DIGITS_SIZE, buffer))) {
 		return buffer;
 	}
 	return std::string();
@@ -292,7 +294,7 @@ DecodeAI013x0x1x(const BitArray& bits, const char* firstAIdigits, const char* da
 }
 
 std::string
-ExpandedBinaryDecoder::Decode(const BitArray& bits)
+DecodeExpandedBits(const BitArray& bits)
 {
 	if (bits.get(1)) {
 		return DecodeAI01AndOtherAIs(bits);
@@ -330,6 +332,4 @@ ExpandedBinaryDecoder::Decode(const BitArray& bits)
 	//throw new IllegalStateException("unknown decoder: " + information);
 }
 
-} // RSS
-} // OneD
-} // ZXing
+} // namespace ZXing::OneD::RSS

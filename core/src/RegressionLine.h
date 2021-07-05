@@ -18,8 +18,8 @@
 #include "Point.h"
 
 #include <algorithm>
-#include <numeric>
 #include <cmath>
+#include <numeric>
 #include <vector>
 
 namespace ZXing {
@@ -88,7 +88,7 @@ public:
 
 	void setDirectionInward(PointF d) { _directionInward = normalized(d); }
 
-	bool evaluate(double maxSignedDist = -1)
+	bool evaluate(double maxSignedDist = -1, bool updatePoints = false)
 	{
 		bool ret = evaluate(_points);
 		if (maxSignedDist > 0) {
@@ -106,11 +106,27 @@ public:
 #endif
 				ret = evaluate(points);
 			}
-#ifdef PRINT_DEBUG
-			_points = points;
-#endif
+
+			if (updatePoints)
+				_points = std::move(points);
 		}
 		return ret;
+	}
+
+	bool isHighRes() const
+	{
+		PointF min = _points.front(), max = _points.front();
+		for (auto p : _points) {
+			min.x = std::min(min.x, p.x);
+			min.y = std::min(min.y, p.y);
+			max.x = std::max(max.x, p.x);
+			max.y = std::max(max.y, p.y);
+		}
+		auto diff  = max - min;
+		auto len   = maxAbsComponent(diff);
+		auto steps = std::min(std::abs(diff.x), std::abs(diff.y));
+		// due to aliasing we get bad extrapolations if the line is short and too close to vertical/horizontal
+		return steps > 2 || len > 50;
 	}
 };
 

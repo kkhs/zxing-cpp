@@ -1,6 +1,6 @@
 cmake_minimum_required (VERSION 3.10)
 
-project (ZXing VERSION "1.1.1" LANGUAGES CXX)
+project (ZXing VERSION "1.2.0" LANGUAGES CXX)
 
 option (BUILD_WRITERS "Build with writer support (encoders)" ON)
 option (BUILD_READERS "Build with reader support (decoders)" ON)
@@ -19,6 +19,7 @@ if (MSVC)
     option (LINK_CPP_STATICALLY "MSVC only, link standard library statically (/MT and /MTd)" OFF)
 
     add_definitions (-DUNICODE -D_UNICODE)
+    set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
     set (CMAKE_C_FLAGS_RELEASE "${CMAKE_C_FLAGS_RELEASE} /Oi /GS-")
     set (CMAKE_CXX_FLAGS_RELEASE "${CMAKE_CXX_FLAGS_RELEASE} /Oi /GS-")
     if (LINK_CPP_STATICALLY)
@@ -67,9 +68,6 @@ if (BUILD_UNIT_TESTS)
 endif()
 if (BUILD_PYTHON_MODULE)
     add_subdirectory (wrappers/python)
-endif()
-if (WIN32)
-    add_subdirectory (wrappers/gdiplus)
 endif()
 
 set (CMAKECONFIG_INSTALL_DIR "${CMAKE_INSTALL_LIBDIR}/cmake/ZXing")

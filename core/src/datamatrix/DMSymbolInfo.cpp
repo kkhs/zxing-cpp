@@ -16,6 +16,7 @@
 */
 
 #include "DMSymbolInfo.h"
+
 #include "DMSymbolShape.h"
 #include "ZXContainerAlgorithms.h"
 #include "ZXTestSupport.h"
@@ -23,8 +24,7 @@
 #include <cstddef>
 #include <stdexcept>
 
-namespace ZXing {
-namespace DataMatrix {
+namespace ZXing::DataMatrix {
 
 static const SymbolInfo PROD_SYMBOLS[] = {
 	{ false, 3, 5, 8, 8, 1 },
@@ -65,7 +65,7 @@ static const SymbolInfo PROD_SYMBOLS[] = {
 static const SymbolInfo* s_symbols = PROD_SYMBOLS;
 static ZXING_IF_NOT_TEST(const) size_t s_symbolCount = Size(PROD_SYMBOLS);
 
-#if ZXING_BUILD_FOR_TEST
+#ifdef ZXING_BUILD_FOR_TEST
 
 ZXING_EXPORT_TEST_ONLY
 void OverrideSymbolSet(const SymbolInfo* symbols, size_t count)
@@ -162,5 +162,4 @@ SymbolInfo::verticalDataRegions() const {
 	}
 }
 
-} // DataMatrix
-} // ZXing
+} // namespace ZXing::DataMatrix

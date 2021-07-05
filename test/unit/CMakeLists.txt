@@ -20,7 +20,10 @@ add_executable (UnitTest
     BitArrayUtility.cpp
     PseudoRandom.h
     BitHacksTest.cpp
+    CharacterSetECITest.cpp
     ReedSolomonTest.cpp
+    TextDecoderTest.cpp
+    TextUtfEncodingTest.cpp
     aztec/AZDetectorTest.cpp
     aztec/AZDecoderTest.cpp
     aztec/AZEncoderTest.cpp
@@ -32,17 +35,20 @@ add_executable (UnitTest
     datamatrix/DMPlacementTest.cpp
     datamatrix/DMSymbolInfoTest.cpp
     datamatrix/DMWriterTest.cpp
+    maxicode/MCDecoderTest.cpp
     oned/ODCodaBarWriterTest.cpp
     oned/ODCode39ExtendedModeTest.cpp
     oned/ODCode39WriterTest.cpp
     oned/ODCode93ReaderTest.cpp
     oned/ODCode93WriterTest.cpp
+    oned/ODCode128ReaderTest.cpp
     oned/ODCode128WriterTest.cpp
     oned/ODEAN8WriterTest.cpp
     oned/ODEAN13WriterTest.cpp
     oned/ODITFWriterTest.cpp
     oned/ODUPCAWriterTest.cpp
     oned/ODUPCEWriterTest.cpp
+    oned/rss/ODRSSExpandedBinaryDecoderTest.cpp
     qrcode/QRDataMaskTest.cpp
     qrcode/QRDecodedBitStreamParserTest.cpp
     qrcode/QREncoderTest.cpp
@@ -59,6 +65,6 @@ add_executable (UnitTest
 
 target_include_directories (UnitTest PRIVATE .)
 
-target_link_libraries (UnitTest ZXing::ZXing gtest_main)
+target_link_libraries (UnitTest ZXing::ZXing gtest_main gmock)
 
 add_test(NAME UnitTest COMMAND UnitTest)

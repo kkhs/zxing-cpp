@@ -16,17 +16,16 @@
 */
 
 #include "MCReader.h"
-#include "MCDecoder.h"
-#include "MCBitMatrixParser.h"
-#include "Result.h"
-#include "DecodeHints.h"
-#include "DecoderResult.h"
+
 #include "BinaryBitmap.h"
 #include "BitMatrix.h"
+#include "DecodeHints.h"
+#include "DecoderResult.h"
+#include "MCBitMatrixParser.h"
+#include "MCDecoder.h"
+#include "Result.h"
 
-namespace ZXing {
-namespace MaxiCode {
-
+namespace ZXing::MaxiCode {
 
 /**
 * This method detects a code in a "pure" image -- that is, pure monochrome image
@@ -55,7 +54,7 @@ static BitMatrix ExtractPureBits(const BitMatrix& image)
 	return result;
 }
 
-Reader::Reader(const DecodeHints& hints) : _isPure(hints.isPure()) {}
+Reader::Reader(const DecodeHints& hints) : _isPure(hints.isPure()), _characterSet(hints.characterSet()) {}
 
 Result
 Reader::decode(const BinaryBitmap& image) const
@@ -71,8 +70,7 @@ Reader::decode(const BinaryBitmap& image) const
 		return Result(DecodeStatus::NotFound);
 	}
 
-	return Result(Decoder::Decode(bits), {}, BarcodeFormat::MaxiCode);
+	return Result(Decoder::Decode(bits, _characterSet), {}, BarcodeFormat::MaxiCode);
 }
 
-} // MaxiCode
-} // ZXing
+} // namespace ZXing::MaxiCode

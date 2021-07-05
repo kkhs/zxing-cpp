@@ -15,11 +15,12 @@
 * limitations under the License.
 */
 
-#if (_MSC_VER >= 1915)
+#if defined(_MSC_VER) && (_MSC_VER >= 1915)
 #pragma warning(disable : 4996)
 #endif
 
 #include "GenericLuminanceSource.h"
+
 #include "ByteArray.h"
 #include "ZXContainerAlgorithms.h"
 
@@ -31,7 +32,7 @@
 
 namespace ZXing {
 
-inline static uint8_t RGBToGray(unsigned r, unsigned g, unsigned b)
+static uint8_t RGBToGray(unsigned r, unsigned g, unsigned b)
 {
 	// This optimization is not necessary as the computation below is cheap enough.
 	//if (r == g && g == b) {
@@ -39,7 +40,7 @@ inline static uint8_t RGBToGray(unsigned r, unsigned g, unsigned b)
 	//	return static_cast<uint8_t>(r);
 	//}
 
-	// .299R + 0.587G + 0.114B (YUV/YIQ for PAL and NTSC), 
+	// .299R + 0.587G + 0.114B (YUV/YIQ for PAL and NTSC),
 	// (306*R) >> 10 is approximately equal to R*0.299, and so on.
 	// 0x200 >> 10 is 0.5, it implements rounding.
 	return static_cast<uint8_t>((306 * r + 601 * g + 117 * b + 0x200) >> 10);
@@ -105,25 +106,25 @@ GenericLuminanceSource::GenericLuminanceSource(int left, int top, int width, int
 	}
 }
 
-// Definied here instead of inlining in header to avoid link error since WINDOWS_EXPORT_ALL_SYMBOLS does not cover vtable.
+// Defined here instead of inlining in header to avoid link error since WINDOWS_EXPORT_ALL_SYMBOLS does not cover vtable.
 GenericLuminanceSource::GenericLuminanceSource(int width, int height, const void* bytes, int rowBytes, int pixelBytes, int redIndex, int greenIndex, int blueIndex) :
 	GenericLuminanceSource(0, 0, width, height, bytes, rowBytes, pixelBytes, redIndex, greenIndex, blueIndex, nullptr)
 {
 }
 
-// Definied here instead of inlining in header to avoid link error since WINDOWS_EXPORT_ALL_SYMBOLS does not cover vtable.
+// Defined here instead of inlining in header to avoid link error since WINDOWS_EXPORT_ALL_SYMBOLS does not cover vtable.
 GenericLuminanceSource::GenericLuminanceSource(int left, int top, int width, int height, const void* bytes, int rowBytes, int pixelBytes, int redIndex, int greenIndex, int blueIndex) :
 	GenericLuminanceSource(left, top, width, height, bytes, rowBytes, pixelBytes, redIndex, greenIndex, blueIndex, nullptr)
 {
 }
 
-// Definied here instead of inlining in header to avoid link error since WINDOWS_EXPORT_ALL_SYMBOLS does not cover vtable.
+// Defined here instead of inlining in header to avoid link error since WINDOWS_EXPORT_ALL_SYMBOLS does not cover vtable.
 GenericLuminanceSource::GenericLuminanceSource(int width, int height, const void* bytes, int rowBytes) :
 	GenericLuminanceSource(0, 0, width, height, bytes, rowBytes, 1, 0, 0, 0, nullptr)
 {
 }
 
-// Definied here instead of inlining in header to avoid link error since WINDOWS_EXPORT_ALL_SYMBOLS does not cover vtable.
+// Defined here instead of inlining in header to avoid link error since WINDOWS_EXPORT_ALL_SYMBOLS does not cover vtable.
 GenericLuminanceSource::GenericLuminanceSource(int left, int top, int width, int height, const void* bytes, int rowBytes) :
 	GenericLuminanceSource(left, top, width, height, bytes, rowBytes, 1, 0, 0, 0, nullptr)
 {
@@ -216,7 +217,7 @@ GenericLuminanceSource::rotated(int degreeCW) const
 		return std::make_shared<GenericLuminanceSource>(0, 0, _height, _width, pixels, _height);
 	}
 	else if (degreeCW == 180) {
-		// same as a vertical flip followed a horizonal flip
+		// same as a vertical flip followed a horizontal flip
 		auto pixels = MakeCopy(*_pixels, _rowBytes, _left, _top, _width, _height);
 		std::reverse(pixels->begin(), pixels->end());
 		return std::make_shared<GenericLuminanceSource>(0, 0, _width, _height, pixels, _width);

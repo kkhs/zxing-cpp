@@ -16,18 +16,17 @@
 */
 
 #include "HybridBinarizer.h"
-#include "LuminanceSource.h"
-#include "ByteArray.h"
+
 #include "BitMatrix.h"
+#include "BitMatrixIO.h"
+#include "ByteArray.h"
+#include "LuminanceSource.h"
 #include "Matrix.h"
 #include "ZXContainerAlgorithms.h"
 
-#include <cassert>
 #include <cstdint>
-#include <functional>
 #include <memory>
 #include <mutex>
-#include <vector>
 #include <utility>
 
 namespace ZXing {
@@ -124,6 +123,14 @@ static Matrix<int> CalculateBlackPoints(const uint8_t* luminances, int subWidth,
 */
 static void ThresholdBlock(const uint8_t* luminances, int xoffset, int yoffset, int threshold, int stride, BitMatrix& matrix)
 {
+#ifdef ZX_FAST_BIT_STORAGE
+	for (int y = yoffset; y < yoffset + BLOCK_SIZE; ++y) {
+		auto* src = luminances + y * stride + xoffset;
+		auto* const dstBegin = matrix.row(y).begin() + xoffset;
+		for (auto* dst = dstBegin; dst < dstBegin + BLOCK_SIZE; ++dst, ++src)
+			*dst = *src <= threshold;
+	}
+#else
 	for (int y = 0, offset = yoffset * stride + xoffset; y < BLOCK_SIZE; y++, offset += stride) {
 		for (int x = 0; x < BLOCK_SIZE; x++) {
 			// Comparison needs to be <= so that black == 0 pixels are black even if the threshold is 0.
@@ -132,6 +139,7 @@ static void ThresholdBlock(const uint8_t* luminances, int xoffset, int yoffset, 
 			}
 		}
 	}
+#endif
 }
 
 /**

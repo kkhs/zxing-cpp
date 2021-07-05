@@ -1,0 +1,59 @@
+The target system is: Emscripten - 1 - x86
+The host system is: Darwin - 20.5.0 - x86_64
+Performing C SOURCE FILE Test CMAKE_HAVE_LIBC_PTHREAD succeeded with the following output:
+Change Dir: /Users/satoshi_watanabe/dev/kakehashi/zxing-cpp/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/make -f Makefile cmTC_684d9/fast && /Applications/Xcode.app/Contents/Developer/usr/bin/make  -f CMakeFiles/cmTC_684d9.dir/build.make CMakeFiles/cmTC_684d9.dir/build
+Building C object CMakeFiles/cmTC_684d9.dir/src.c.o
+/usr/local/Cellar/emscripten/2.0.25/libexec/emcc -DCMAKE_HAVE_LIBC_PTHREAD   -MD -MT CMakeFiles/cmTC_684d9.dir/src.c.o -MF CMakeFiles/cmTC_684d9.dir/src.c.o.d -o CMakeFiles/cmTC_684d9.dir/src.c.o -c /Users/satoshi_watanabe/dev/kakehashi/zxing-cpp/CMakeFiles/CMakeTmp/src.c
+shared:INFO: (Emscripten: Running sanity checks)
+cache:INFO: generating system headers: sysroot_install.stamp... (this will be cached in "/usr/local/Cellar/emscripten/2.0.25/libexec/cache/sysroot_install.stamp" for subsequent builds)
+cache:INFO:  - ok
+Linking C executable cmTC_684d9.js
+/usr/local/Cellar/cmake/3.20.5/bin/cmake -E cmake_link_script CMakeFiles/cmTC_684d9.dir/link.txt --verbose=1
+/usr/local/Cellar/emscripten/2.0.25/libexec/emcc @CMakeFiles/cmTC_684d9.dir/objects1.rsp -o cmTC_684d9.js 
+cache:INFO: generating system library: sysroot/lib/wasm32-emscripten/libGL.a... (this will be cached in "/usr/local/Cellar/emscripten/2.0.25/libexec/cache/sysroot/lib/wasm32-emscripten/libGL.a" for subsequent builds)
+cache:INFO:  - ok
+cache:INFO: generating system library: sysroot/lib/wasm32-emscripten/libal.a... (this will be cached in "/usr/local/Cellar/emscripten/2.0.25/libexec/cache/sysroot/lib/wasm32-emscripten/libal.a" for subsequent builds)
+cache:INFO:  - ok
+cache:INFO: generating system library: sysroot/lib/wasm32-emscripten/libhtml5.a... (this will be cached in "/usr/local/Cellar/emscripten/2.0.25/libexec/cache/sysroot/lib/wasm32-emscripten/libhtml5.a" for subsequent builds)
+cache:INFO:  - ok
+cache:INFO: generating system library: sysroot/lib/wasm32-emscripten/libc.a... (this will be cached in "/usr/local/Cellar/emscripten/2.0.25/libexec/cache/sysroot/lib/wasm32-emscripten/libc.a" for subsequent builds)
+cache:INFO:  - ok
+cache:INFO: generating system library: sysroot/lib/wasm32-emscripten/libcompiler_rt.a... (this will be cached in "/usr/local/Cellar/emscripten/2.0.25/libexec/cache/sysroot/lib/wasm32-emscripten/libcompiler_rt.a" for subsequent builds)
+cache:INFO:  - ok
+cache:INFO: generating system library: sysroot/lib/wasm32-emscripten/libc++-noexcept.a... (this will be cached in "/usr/local/Cellar/emscripten/2.0.25/libexec/cache/sysroot/lib/wasm32-emscripten/libc++-noexcept.a" for subsequent builds)
+cache:INFO:  - ok
+cache:INFO: generating system library: sysroot/lib/wasm32-emscripten/libc++abi-noexcept.a... (this will be cached in "/usr/local/Cellar/emscripten/2.0.25/libexec/cache/sysroot/lib/wasm32-emscripten/libc++abi-noexcept.a" for subsequent builds)
+cache:INFO:  - ok
+cache:INFO: generating system library: sysroot/lib/wasm32-emscripten/libdlmalloc.a... (this will be cached in "/usr/local/Cellar/emscripten/2.0.25/libexec/cache/sysroot/lib/wasm32-emscripten/libdlmalloc.a" for subsequent builds)
+cache:INFO:  - ok
+cache:INFO: generating system library: sysroot/lib/wasm32-emscripten/libc_rt_wasm.a... (this will be cached in "/usr/local/Cellar/emscripten/2.0.25/libexec/cache/sysroot/lib/wasm32-emscripten/libc_rt_wasm.a" for subsequent builds)
+cache:INFO:  - ok
+cache:INFO: generating system library: sysroot/lib/wasm32-emscripten/libsockets.a... (this will be cached in "/usr/local/Cellar/emscripten/2.0.25/libexec/cache/sysroot/lib/wasm32-emscripten/libsockets.a" for subsequent builds)
+cache:INFO:  - ok
+cache:INFO: generating system asset: generated_struct_info.json... (this will be cached in "/usr/local/Cellar/emscripten/2.0.25/libexec/cache/generated_struct_info.json" for subsequent builds)
+cache:INFO:  - ok
+
+
+Source file was:
+#include <pthread.h>
+
+static void* test_func(void* data)
+{
+  return data;
+}
+
+int main(void)
+{
+  pthread_t thread;
+  pthread_create(&thread, NULL, test_func, NULL);
+  pthread_detach(thread);
+  pthread_cancel(thread);
+  pthread_join(thread, NULL);
+  pthread_atfork(NULL, NULL, NULL);
+  pthread_exit(NULL);
+
+  return 0;
+}
+

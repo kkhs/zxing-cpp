@@ -16,32 +16,31 @@
 */
 
 #include "QRDecoder.h"
-#include "QRBitMatrixParser.h"
-#include "QRFormatInformation.h"
-#include "QRDecoderMetadata.h"
-#include "QRDataMask.h"
-#include "QRDataBlock.h"
-#include "QRCodecMode.h"
-#include "DecoderResult.h"
+
 #include "BitMatrix.h"
-#include "ReedSolomonDecoder.h"
-#include "GenericGF.h"
 #include "BitSource.h"
-#include "TextDecoder.h"
 #include "CharacterSet.h"
 #include "CharacterSetECI.h"
 #include "DecodeStatus.h"
+#include "DecoderResult.h"
+#include "GenericGF.h"
+#include "QRBitMatrixParser.h"
+#include "QRCodecMode.h"
+#include "QRDataBlock.h"
+#include "QRDecoderMetadata.h"
+#include "QRFormatInformation.h"
+#include "ReedSolomonDecoder.h"
+#include "StructuredAppend.h"
+#include "TextDecoder.h"
 #include "ZXContainerAlgorithms.h"
 #include "ZXTestSupport.h"
 
 #include <algorithm>
-#include <list>
 #include <stdexcept>
-#include <vector>
 #include <utility>
+#include <vector>
 
-namespace ZXing {
-namespace QRCode {
+namespace ZXing::QRCode {
 
 /**
 * <p>Given data and error-correction codewords received, possibly corrupted by errors, attempts to
@@ -58,7 +57,7 @@ CorrectErrors(ByteArray& codewordBytes, int numDataCodewords)
 	std::vector<int> codewordsInts(codewordBytes.begin(), codewordBytes.end());
 
 	int numECCodewords = Size(codewordBytes) - numDataCodewords;
-	if (!ReedSolomonDecoder::Decode(GenericGF::QRCodeField256(), codewordsInts, numECCodewords))
+	if (!ReedSolomonDecode(GenericGF::QRCodeField256(), codewordsInts, numECCodewords))
 		return false;
 
 	// Copy back into array of bytes -- only need to worry about the bytes that were data
@@ -138,7 +137,7 @@ DecodeKanjiSegment(BitSource& bits, int count, std::wstring& result)
 }
 
 static DecodeStatus
-DecodeByteSegment(BitSource& bits, int count, CharacterSet currentCharset, const std::string& hintedCharset, std::wstring& result, std::list<ByteArray>& byteSegments)
+DecodeByteSegment(BitSource& bits, int count, CharacterSet currentCharset, const std::string& hintedCharset, std::wstring& result)
 {
 	// Don't crash trying to read more bits than we have available.
 	if (8 * count > bits.available()) {
@@ -165,7 +164,6 @@ DecodeByteSegment(BitSource& bits, int count, CharacterSet currentCharset, const
 		}
 	}
 	TextDecoder::Append(result, readBytes.data(), Size(readBytes), currentCharset);
-	byteSegments.push_back(readBytes);
 	return DecodeStatus::NoError;
 }
 
@@ -311,17 +309,14 @@ DecodeBitStream(ByteArray&& bytes, const Version& version, ErrorCorrectionLevel 
 {
 	BitSource bits(bytes);
 	std::wstring result;
-	std::list<ByteArray> byteSegments;
-	int codeSequence = -1;
-	int codeCount = -1;
-	int parityData = -1;
+	StructuredAppendInfo structuredAppend;
 	static const int GB2312_SUBSET = 1;
 
 	try
 	{
 		CharacterSet currentCharset = CharacterSet::Unknown;
 		bool fc1InEffect = false;
-		CodecMode::Mode mode;
+		CodecMode mode;
 		do {
 			// While still another segment to read...
 			if (bits.available() < 4) {
@@ -329,7 +324,7 @@ DecodeBitStream(ByteArray&& bytes, const Version& version, ErrorCorrectionLevel 
 				mode = CodecMode::TERMINATOR;
 			}
 			else {
-				mode = CodecMode::ModeForBits(bits.readBits(4)); // mode is encoded by 4 bits
+				mode = CodecModeForBits(bits.readBits(4)); // mode is encoded by 4 bits
 			}
 			switch (mode) {
 			case CodecMode::TERMINATOR:
@@ -344,10 +339,10 @@ DecodeBitStream(ByteArray&& bytes, const Version& version, ErrorCorrectionLevel 
 					return DecodeStatus::FormatError;
 				}
 				// sequence number and parity is added later to the result metadata
-				// Read next 4 bits of sequence #, 4 bits of code count, and 8 bits of parity data, then continue
-				codeSequence = bits.readBits(4);
-				codeCount = bits.readBits(4) + 1;
-				parityData = bits.readBits(8);
+				// Read next 4 bits of index, 4 bits of symbol count, and 8 bits of parity data, then continue
+				structuredAppend.index = bits.readBits(4);
+				structuredAppend.count = bits.readBits(4) + 1;
+				structuredAppend.id = std::to_string(bits.readBits(8));
 				break;
 			case CodecMode::ECI: {
 				// Count doesn't apply to ECI
@@ -366,7 +361,7 @@ DecodeBitStream(ByteArray&& bytes, const Version& version, ErrorCorrectionLevel 
 				// First handle Hanzi mode which does not start with character count
 				// chinese mode contains a sub set indicator right after mode indicator
 				int subset = bits.readBits(4);
-				int countHanzi = bits.readBits(CodecMode::CharacterCountBits(mode, version));
+				int countHanzi = bits.readBits(CharacterCountBits(mode, version));
 				if (subset == GB2312_SUBSET) {
 					auto status = DecodeHanziSegment(bits, countHanzi, result);
 					if (StatusIsError(status)) {
@@ -378,7 +373,7 @@ DecodeBitStream(ByteArray&& bytes, const Version& version, ErrorCorrectionLevel 
 			default: {
 				// "Normal" QR code modes:
 				// How many characters will follow, encoded in this mode?
-				int count = bits.readBits(CodecMode::CharacterCountBits(mode, version));
+				int count = bits.readBits(CharacterCountBits(mode, version));
 				DecodeStatus status;
 				switch (mode) {
 				case CodecMode::NUMERIC:
@@ -388,7 +383,7 @@ DecodeBitStream(ByteArray&& bytes, const Version& version, ErrorCorrectionLevel 
 					status = DecodeAlphanumericSegment(bits, count, fc1InEffect, result);
 					break;
 				case CodecMode::BYTE:
-					status = DecodeByteSegment(bits, count, currentCharset, hintedCharset, result, byteSegments);
+					status = DecodeByteSegment(bits, count, currentCharset, hintedCharset, result);
 					break;
 				case CodecMode::KANJI:
 					status = DecodeKanjiSegment(bits, count, result);
@@ -411,22 +406,19 @@ DecodeBitStream(ByteArray&& bytes, const Version& version, ErrorCorrectionLevel 
 	}
 
 	return DecoderResult(std::move(bytes), std::move(result))
-		.setByteSegments(std::move(byteSegments))
 		.setEcLevel(ToString(ecLevel))
-		.setStructuredAppendParity(parityData)
-		.setStructuredAppendSequenceNumber(codeSequence)
-		.setStructuredAppendCodeCount(codeCount);
+		.setStructuredAppend(structuredAppend);
 }
 
 static DecoderResult
 DoDecode(const BitMatrix& bits, const Version& version, const std::string& hintedCharset, bool mirrored)
 {
-	auto formatInfo = BitMatrixParser::ReadFormatInformation(bits, mirrored);
+	auto formatInfo = ReadFormatInformation(bits, mirrored);
 	if (!formatInfo.isValid())
 		return DecodeStatus::FormatError;
 
 	// Read codewords
-	ByteArray codewords = BitMatrixParser::ReadCodewords(bits, version, formatInfo.dataMask(), mirrored);
+	ByteArray codewords = ReadCodewords(bits, version, formatInfo.dataMask(), mirrored);
 	if (codewords.empty())
 		return DecodeStatus::FormatError;
 
@@ -459,10 +451,9 @@ DoDecode(const BitMatrix& bits, const Version& version, const std::string& hinte
 	return DecodeBitStream(std::move(resultBytes), version, formatInfo.errorCorrectionLevel(), hintedCharset);
 }
 
-DecoderResult
-Decoder::Decode(const BitMatrix& bits, const std::string& hintedCharset)
+DecoderResult Decode(const BitMatrix& bits, const std::string& hintedCharset)
 {
-	const Version* version = BitMatrixParser::ReadVersion(bits);
+	const Version* version = ReadVersion(bits);
 	if (!version)
 		return DecodeStatus::FormatError;
 
@@ -478,5 +469,4 @@ Decoder::Decode(const BitMatrix& bits, const std::string& hintedCharset)
 	return res;
 }
 
-} // QRCode
-} // ZXing
+} // namespace ZXing::QRCode

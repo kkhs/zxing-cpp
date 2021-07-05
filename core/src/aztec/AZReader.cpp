@@ -16,19 +16,24 @@
 */
 
 #include "AZReader.h"
+
+#include "AZDecoder.h"
 #include "AZDetector.h"
 #include "AZDetectorResult.h"
-#include "AZDecoder.h"
+#include "BinaryBitmap.h"
+#include "DecodeHints.h"
+#include "DecoderResult.h"
+#include "Result.h"
 
 #include <memory>
 #include <utility>
-#include <vector>
-#include "Result.h"
-#include "BinaryBitmap.h"
-#include "DecoderResult.h"
 
-namespace ZXing {
-namespace Aztec {
+namespace ZXing::Aztec {
+
+Reader::Reader(const DecodeHints& hints)
+	: _isPure(hints.isPure()), _characterSet(hints.characterSet())
+{
+}
 
 Result
 Reader::decode(const BinaryBitmap& image) const
@@ -38,22 +43,21 @@ Reader::decode(const BinaryBitmap& image) const
 		return Result(DecodeStatus::NotFound);
 	}
 
-	DetectorResult detectResult = Detector::Detect(*binImg, false);
+	DetectorResult detectResult = Detector::Detect(*binImg, false, _isPure);
 	DecoderResult decodeResult = DecodeStatus::NotFound;
 	if (detectResult.isValid()) {
-		decodeResult = Decoder::Decode(detectResult);
+		decodeResult = Decoder::Decode(detectResult, _characterSet);
 	}
 
 	//TODO: don't start detection all over again, just to swap 2 corner points
 	if (!decodeResult.isValid()) {
-		detectResult = Detector::Detect(*binImg, true);
+		detectResult = Detector::Detect(*binImg, true, _isPure);
 		if (detectResult.isValid()) {
-			decodeResult = Decoder::Decode(detectResult);
+			decodeResult = Decoder::Decode(detectResult, _characterSet);
 		}
 	}
 
 	return Result(std::move(decodeResult), std::move(detectResult).position(), BarcodeFormat::Aztec);
 }
 
-} // Aztec
-} // ZXing
+} // namespace ZXing::Aztec

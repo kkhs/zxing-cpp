@@ -16,26 +16,25 @@
 */
 
 #include "DMHighLevelEncoder.h"
+
+#include "ByteArray.h"
+#include "CharacterSet.h"
 #include "DMEncoderContext.h"
 #include "TextEncoder.h"
-#include "CharacterSet.h"
-#include "ByteArray.h"
-#include "ZXStrConvWorkaround.h"
 #include "ZXContainerAlgorithms.h"
 
-#include <cstddef>
-#include <cstdint>
-#include <string>
 #include <algorithm>
 #include <array>
-#include <limits>
 #include <cmath>
-#include <numeric>
+#include <cstddef>
+#include <cstdint>
 #include <functional>
+#include <limits>
+#include <numeric>
 #include <stdexcept>
+#include <string>
 
-namespace ZXing {
-namespace DataMatrix {
+namespace ZXing::DataMatrix {
 
 static const uint8_t PAD = 129;
 static const uint8_t UPPER_SHIFT = 235;
@@ -67,44 +66,44 @@ static const uint8_t LATCHES[] = {
 	231, // LATCH_TO_BASE256,
 };
 
-static inline bool IsDigit(int ch)
+static bool IsDigit(int ch)
 {
 	return ch >= '0' && ch <= '9';
 }
 
-static inline bool IsExtendedASCII(int ch)
+static bool IsExtendedASCII(int ch)
 {
 	return ch >= 128 && ch <= 255;
 }
 
-static inline bool IsNativeC40(int ch)
+static bool IsNativeC40(int ch)
 {
 	return (ch == ' ') || (ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'Z');
 }
 
-static inline bool IsNativeText(int ch)
+static bool IsNativeText(int ch)
 {
 	return (ch == ' ') || (ch >= '0' && ch <= '9') || (ch >= 'a' && ch <= 'z');
 }
 
-static inline bool IsX12TermSep(int ch)
+static bool IsX12TermSep(int ch)
 {
 	return (ch == '\r') //CR
 		|| (ch == '*')
 		|| (ch == '>');
 }
 
-static inline bool IsNativeX12(int ch)
+static bool IsNativeX12(int ch)
 {
 	return IsX12TermSep(ch) || (ch == ' ') || (ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'Z');
 }
 
-static inline bool IsNativeEDIFACT(int ch)
+static bool IsNativeEDIFACT(int ch)
 {
 	return ch >= ' ' && ch <= '^';
 }
 
-static inline bool IsSpecialB256(int /*ch*/)
+static bool IsSpecialB256(int /*ch*/)
 {
 	return false; //TODO NOT IMPLEMENTED YET!!!
 }
@@ -874,8 +873,7 @@ static bool EndsWith(const std::wstring& s, const std::wstring& ss)
 	return s.length() > ss.length() && s.compare(s.length() - ss.length(), ss.length(), ss) == 0;
 }
 
-ByteArray
-HighLevelEncoder::Encode(const std::wstring& msg)
+ByteArray Encode(const std::wstring& msg)
 {
 	return Encode(msg, SymbolShape::NONE, -1, -1, -1, -1);
 }
@@ -891,8 +889,7 @@ HighLevelEncoder::Encode(const std::wstring& msg)
 * @param maxSize the maximum symbol size constraint or null for no constraint
 * @return the encoded message (the char values range from 0 to 255)
 */
-ByteArray
-HighLevelEncoder::Encode(const std::wstring& msg, SymbolShape shape, int minWdith, int minHeight, int maxWidth, int maxHeight)
+ByteArray Encode(const std::wstring& msg, SymbolShape shape, int minWidth, int minHeight, int maxWidth, int maxHeight)
 {
 	//the codewords 0..255 are encoded as Unicode characters
 	//Encoder[] encoders = {
@@ -902,7 +899,7 @@ HighLevelEncoder::Encode(const std::wstring& msg, SymbolShape shape, int minWdit
 
 	EncoderContext context(TextEncoder::FromUnicode(msg, CharacterSet::ISO8859_1));
 	context.setSymbolShape(shape);
-	context.setSizeConstraints(minWdith, minHeight, maxWidth, maxHeight);
+	context.setSizeConstraints(minWidth, minHeight, maxWidth, maxHeight);
 
 	if (StartsWith(msg, MACRO_05_HEADER) && EndsWith(msg, MACRO_TRAILER)) {
 		context.addCodeword(MACRO_05);
@@ -949,5 +946,4 @@ HighLevelEncoder::Encode(const std::wstring& msg, SymbolShape shape, int minWdit
 	return context.codewords();
 }
 
-} // DataMatrix
-} // ZXing
+} // namespace ZXing::DataMatrix

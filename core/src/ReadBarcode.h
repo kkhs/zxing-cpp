@@ -1,3 +1,4 @@
+#pragma once
 /*
 * Copyright 2019 Axel Waggershauser
 *
@@ -14,10 +15,8 @@
 * limitations under the License.
 */
 
-#pragma once
-
-#include "Result.h"
 #include "DecodeHints.h"
+#include "Result.h"
 
 #include <cstdint>
 
@@ -45,6 +44,7 @@ constexpr inline int BlueIndex(ImageFormat format) { return (static_cast<uint32_
  */
 class ImageView
 {
+protected:
 	const uint8_t* _data = nullptr;
 	ImageFormat _format;
 	int _width = 0, _height = 0, _pixStride = 0, _rowStride = 0;
@@ -69,6 +69,25 @@ public:
 	{}
 
 	const uint8_t* data(int x, int y) const { return _data + y * _rowStride + x * _pixStride; }
+
+	ImageView cropped(int left, int top, int width, int height) const
+	{
+		left   = std::max(0, left);
+		top    = std::max(0, top);
+		width  = width <= 0 ? (_width - left) : std::min(_width - left, width);
+		height = height <= 0 ? (_height - top) : std::min(_height - top, height);
+		return {data(left, top), width, height, _format, _rowStride, _pixStride};
+	}
+
+	ImageView rotated(int degree) const
+	{
+		switch ((degree + 360) % 360) {
+		case 90: return {data(0, _height - 1), _height, _width, _format, _pixStride, -_rowStride};
+		case 180: return {data(_width - 1, _height - 1), _width, _height, _format, -_rowStride, -_pixStride};
+		case 270: return {data(_width - 1, 0), _height, _width, _format, -_pixStride, _rowStride};
+		}
+		return *this;
+	}
 };
 
 /**

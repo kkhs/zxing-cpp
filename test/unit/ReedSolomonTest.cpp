@@ -14,10 +14,11 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
-#include "ReedSolomonDecoder.h"
-#include "ReedSolomonEncoder.h"
+
 #include "GenericGF.h"
 #include "PseudoRandom.h"
+#include "ReedSolomonDecoder.h"
+#include "ReedSolomonEncoder.h"
 
 #include <algorithm>
 #include <ostream>
@@ -44,11 +45,10 @@ namespace {
 	}
 
 	void TestEncoder(const GenericGF& field, const std::vector<int>& dataWords, const std::vector<int>& ecWords) {
-		ReedSolomonEncoder encoder(field);
 		auto messageExpected = dataWords + ecWords;
 		auto message = dataWords;
 		message.resize(message.size() + ecWords.size());
-		encoder.encode(message, Size(ecWords));
+		ReedSolomonEncode(field, message, Size(ecWords));
 		EXPECT_EQ(message, messageExpected) << "Encode in " << field << " (" << dataWords.size() << ',' << ecWords.size() << ") failed";
 	}
 
@@ -80,7 +80,7 @@ namespace {
 				}
 				auto message = dataWords + ecWords;
 				Corrupt(message, i, random, field.size());
-				bool success = ReedSolomonDecoder::Decode(field, message, Size(ecWords));
+				bool success = ReedSolomonDecode(field, message, Size(ecWords));
 				if (!success) {
 					// fail only if maxErrors exceeded
 					ASSERT_GT(i, maxErrors) << "Decode in " << field << " (" << dataWords.size() << ',' << ecWords.size() << ") failed at " << i;

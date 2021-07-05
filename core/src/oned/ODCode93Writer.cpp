@@ -16,14 +16,14 @@
 */
 
 #include "ODCode93Writer.h"
+
 #include "ODWriterHelper.h"
 #include "ZXContainerAlgorithms.h"
 #include "ZXTestSupport.h"
 
 #include <stdexcept>
 
-namespace ZXing {
-namespace OneD {
+namespace ZXing::OneD {
 
 static const char ALPHABET[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-. $/+%abcd*";
 
@@ -162,7 +162,7 @@ Code93Writer::encode(const std::wstring& contents_, int width, int height) const
 		throw std::invalid_argument("Requested contents should be less than 80 digits long after converting to extended encoding");
 	}
 
-	//lenght of code + 2 start/stop characters + 2 checksums, each of 9 bits, plus a termination bar
+	//length of code + 2 start/stop characters + 2 checksums, each of 9 bits, plus a termination bar
 	size_t codeWidth = (contents.length() + 2 + 2) * 9 + 1;
 
 	std::vector<bool> result(codeWidth, false);
@@ -194,6 +194,4 @@ Code93Writer::encode(const std::wstring& contents_, int width, int height) const
 	return WriterHelper::RenderResult(result, width, height, _sidesMargin >= 0 ? _sidesMargin : 10);
 }
 
-
-} // OneD
-} // ZXing
+} // namespace ZXing::OneD

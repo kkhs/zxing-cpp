@@ -15,19 +15,15 @@
 */
 
 #include "BarcodeFormat.h"
-#include "MultiFormatWriter.h"
 #include "BitMatrix.h"
-#include "ByteMatrix.h"
+#include "MultiFormatWriter.h"
 #include "TextUtfEncoding.h"
-#include "ZXStrConvWorkaround.h"
 
-#include <iostream>
-#include <cstring>
-#include <string>
 #include <algorithm>
 #include <cctype>
-#include <cstdlib>
-#include <stdexcept>
+#include <cstring>
+#include <iostream>
+#include <string>
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb_image_write.h"

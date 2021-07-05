@@ -27,6 +27,7 @@ struct ReadResult
 	std::vector<uint8_t> rawBytes;
 	std::wstring text;
 	std::string error;
+	ZXing::Position position;
 };
 
 ReadResult readBarcodeFromPixmap(int bufferPtr, int imgWidth, int imgHeight, bool tryHarder, std::string format)
@@ -61,11 +62,24 @@ EMSCRIPTEN_BINDINGS(BarcodeReader)
 	register_vector<uint8_t>("ByteArray");
 
 	value_object<ReadResult>("ReadResult")
-	        .field("format", &ReadResult::format)
+			.field("format", &ReadResult::format)
 			.field("rawBytes", &ReadResult::rawBytes)
-	        .field("text", &ReadResult::text)
-	        .field("error", &ReadResult::error)
-	        ;
+			.field("text", &ReadResult::text)
+			.field("error", &ReadResult::error)
+			.field("position", &ReadResult::position)
+			;
+
+	value_object<ZXing::PointI>("Point")
+			.field("x", &ZXing::PointI::x)
+			.field("y", &ZXing::PointI::y)
+			;
+
+	value_object<ZXing::Position>("Position")
+			.field("topLeft", emscripten::index<0>())
+			.field("topRight", emscripten::index<1>())
+			.field("bottomRight", emscripten::index<2>())
+			.field("bottomLeft", emscripten::index<3>())
+			;
 
 	function("readBarcodeFromPixmap", &readBarcodeFromPixmap);
 }

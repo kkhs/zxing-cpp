@@ -17,38 +17,44 @@
 */
 
 #include "QRDetector.h"
-#include "QRVersion.h"
+
 #include "BitMatrix.h"
 #include "BitMatrixCursor.h"
-#include "DetectorResult.h"
-#include "PerspectiveTransform.h"
-#include "RegressionLine.h"
 #include "ConcentricFinder.h"
+#include "DetectorResult.h"
 #include "GridSampler.h"
 #include "LogMatrix.h"
+#include "Pattern.h"
+#include "Quadrilateral.h"
+#include "RegressionLine.h"
+
+#include "BitMatrixIO.h"
 
 #include <algorithm>
 #include <cmath>
 #include <cstdlib>
-#include <limits>
+#include <iterator>
 #include <map>
 #include <utility>
+#include <vector>
 
-namespace ZXing {
-namespace QRCode {
+namespace ZXing::QRCode {
+
+constexpr auto PATTERN    = FixedPattern<5, 7>{1, 1, 3, 1, 1};
+constexpr int MIN_MODULES = 1 * 4 + 17; // version 1
+constexpr int MAX_MODULES = 40 * 4 + 17; // version 40
 
 static auto FindFinderPatterns(const BitMatrix& image, bool tryHarder)
 {
-	constexpr int MIN_SKIP    = 3;           // 1 pixel/module times 3 modules/center
-	constexpr int MAX_MODULES = 20 * 4 + 17; // support up to version 20 for mobile clients
-	constexpr auto PATTERN    = FixedPattern<5, 7>{1, 1, 3, 1, 1};
+	constexpr int MIN_SKIP         = 3;           // 1 pixel/module times 3 modules/center
+	constexpr int MAX_MODULES_FAST = 20 * 4 + 17; // support up to version 20 for mobile clients
 
 	// Let's assume that the maximum version QR Code we support takes up 1/4 the height of the
 	// image, and then account for the center being 3 modules in size. This gives the smallest
 	// number of pixels the center could be, so skip this often. When trying harder, look for all
 	// QR versions regardless of how dense they are.
 	int height = image.height();
-	int skip = (3 * height) / (4 * MAX_MODULES);
+	int skip = (3 * height) / (4 * MAX_MODULES_FAST);
 	if (skip < MIN_SKIP || tryHarder)
 		skip = MIN_SKIP;
 
@@ -230,7 +236,7 @@ static RegressionLine TraceLine(const BitMatrix& image, PointF p, PointF d, int 
 		} while (--stepCount > 0 && c.stepAlongEdge(dir, true));
 	}
 
-	line.evaluate(1.0);
+	line.evaluate(1.0, true);
 
 	for (auto p : line.points())
 		log(p, 2);
@@ -246,6 +252,18 @@ static DetectorResult SampleAtFinderPatternSet(const BitMatrix& image, const Fin
 	int dimension = best.dim;
 	int moduleSize = static_cast<int>(best.ms + 1);
 
+	auto quad = Rectangle(dimension, dimension, 3.5);
+
+	auto sample = [&](PointF br, PointF quad2) {
+		log(br, 3);
+		quad[2] = quad2;
+		return SampleGrid(image, dimension, dimension, {quad, {fp.tl, fp.tr, br, fp.bl}});
+	};
+
+	// Everything except version 1 (21 modules) has an alignment pattern. Estimate the center of that by intersecting
+	// line extensions of the 1 module wide sqare around the finder patterns. This could also help with detecting
+	// slanted symbols of version 1.
+
 	// generate 4 lines: outer and inner edge of the 1 module wide black line between the two outer and the inner
 	// (tl) finder pattern
 	auto bl2 = TraceLine(image, fp.bl, fp.tl, 2);
@@ -253,34 +271,35 @@ static DetectorResult SampleAtFinderPatternSet(const BitMatrix& image, const Fin
 	auto tr2 = TraceLine(image, fp.tr, fp.tl, 2);
 	auto tr3 = TraceLine(image, fp.tr, fp.tl, 3);
 
-	auto quad = Rectangle(dimension, dimension, 3.5);
-	PointF br = fp.tr - fp.tl + fp.bl;
-
 	if (bl2.isValid() && tr2.isValid() && bl3.isValid() && tr3.isValid()) {
 		// intersect both outer and inner line pairs and take the center point between the two intersection points
-		br = (intersect(bl2, tr2) + intersect(bl3, tr3)) / 2;
+		auto brInter = (intersect(bl2, tr2) + intersect(bl3, tr3)) / 2;
+		log(brInter, 3);
 
 		// if the estimated alignment pattern position is outside of the image, stop here
-		if (!image.isIn(PointI(br), 3 * moduleSize))
+		if (!image.isIn(PointI(brInter), 3 * moduleSize))
 			return {};
 
-		log(br, 3);
-		quad[2] = quad[2] - PointF(3, 3);
-
-		// Everything except version 1 (21 modules) has an alignment pattern
 		if (dimension > 21) {
-			// in case we landed outside of the central black module of the alignment pattern, use the center
+			// just in case we landed outside of the central black module of the alignment pattern, use the center
 			// of the next best circle (either outer or inner edge of the white part of the alignment pattern)
-			auto br2 = CenterOfRing(image, PointI(br), moduleSize * 4, 1, false).value_or(br);
+			auto brCoR = CenterOfRing(image, PointI(brInter), moduleSize * 4, 1, false).value_or(brInter);
 			// if we did not land on a black pixel or the concentric pattern finder fails,
 			// leave the intersection of the lines as the best guess
-			if (image.get(br2))
-				br = LocateConcentricPattern<true>(image, FixedPattern<3, 3>{1, 1, 1}, br2, moduleSize * 3)
-						 .value_or(ConcentricPattern{br});
+			if (image.get(brCoR)) {
+				if (auto brCP = LocateConcentricPattern<true>(image, FixedPattern<3, 3>{1, 1, 1}, brCoR, moduleSize * 3))
+					return sample(*brCP, quad[2] - PointF(3, 3));
+			}
 		}
+
+		// if the resolution of the RegressionLines is sufficient, use their intersection as the best estimate
+		// (see discussion in #199, TODO: tune threshold in RegressionLine::isHighRes())
+		if (bl2.isHighRes() && bl3.isHighRes() && tr2.isHighRes() && tr3.isHighRes())
+			return sample(brInter, quad[2] - PointF(3, 3));
 	}
 
-	return SampleGrid(image, dimension, dimension, {quad, {fp.tl, fp.tr, br, fp.bl}});
+	// otherwise the simple estimation used by upstream is used as a best guess fallback
+	return sample(fp.tr - fp.tl + fp.bl, quad[2]);
 }
 
 /**
@@ -291,36 +310,50 @@ static DetectorResult SampleAtFinderPatternSet(const BitMatrix& image, const Fin
 */
 static DetectorResult DetectPure(const BitMatrix& image)
 {
-	const int minSize = 21; // Number of modules in the smallest QRCode (Version 1)
+	using Pattern = std::array<PatternView::value_type, PATTERN.size()>;
+
+#ifdef PRINT_DEBUG
+	SaveAsPBM(image, "weg.pbm");
+#endif
+
 	int left, top, width, height;
-	if (!image.findBoundingBox(left, top, width, height, minSize) || width != height) {
+	if (!image.findBoundingBox(left, top, width, height, MIN_MODULES) || std::abs(width - height) > 1)
 		return {};
-	}
-
-	// find the first white pixel on the diagonal
-	int moduleSize = 1;
-	while (moduleSize < width / minSize && image.get(left + moduleSize, top + moduleSize))
-		++moduleSize;
-
-	int matrixWidth = width / moduleSize;
-	int matrixHeight = height / moduleSize;
-	if (matrixWidth < minSize || matrixHeight < minSize) {
-		return {};
-	}
-
-	// Push in the "border" by half the module width so that we start
-	// sampling in the middle of the module. Just in case the image is a
-	// little off, this will help recover.
-	int msh    = moduleSize / 2;
 	int right  = left + width - 1;
 	int bottom = top + height - 1;
 
+	PointI tl{left, top}, tr{right, top}, bl{left, bottom};
+	Pattern diagonal;
+	// allow corners be moved one pixel inside to accomodate for possible aliasing artifacts
+	for (auto [p, d] : {std::pair(tl, PointI{1, 1}), {tr, {-1, 1}}, {bl, {1, -1}}}) {
+		diagonal = BitMatrixCursorI(image, p, d).readPatternFromBlack<Pattern>(1, width / 3);
+		if (!IsPattern(diagonal, PATTERN))
+			return {};
+	}
+
+	auto fpWidth = Reduce(diagonal);
+	auto dimension = EstimateDimension(image, tl + fpWidth / 2 * PointF(1, 1), tr + fpWidth / 2 * PointF(-1, 1)).dim;
+
+	float moduleSize = float(width) / dimension;
+	if (dimension < MIN_MODULES || dimension > MAX_MODULES ||
+		!image.isIn(PointF{left + moduleSize / 2 + (dimension - 1) * moduleSize,
+						   top + moduleSize / 2 + (dimension - 1) * moduleSize}))
+		return {};
+
+#ifdef PRINT_DEBUG
+	LogMatrix log;
+	LogMatrixWriter lmw(log, image, 5, "grid2.pnm");
+	for (int y = 0; y < dimension; y++)
+		for (int x = 0; x < dimension; x++)
+			log(PointF(left + (x + .5f) * moduleSize, top + (y + .5f) * moduleSize));
+#endif
+
 	// Now just read off the bits (this is a crop + subsample)
-	return {Deflate(image, matrixWidth, matrixHeight, top + msh, left + msh, moduleSize),
+	return {Deflate(image, dimension, dimension, top + moduleSize / 2, left + moduleSize / 2, moduleSize),
 			{{left, top}, {right, top}, {right, bottom}, {left, bottom}}};
 }
 
-DetectorResult Detector::Detect(const BitMatrix& image, bool tryHarder, bool isPure)
+DetectorResult Detect(const BitMatrix& image, bool tryHarder, bool isPure)
 {
 #ifdef PRINT_DEBUG
 	LogMatrixWriter lmw(log, image, 5, "qr-log.pnm");
@@ -341,5 +374,4 @@ DetectorResult Detector::Detect(const BitMatrix& image, bool tryHarder, bool isP
 	return SampleAtFinderPatternSet(image, sets[0]);
 }
 
-} // QRCode
-} // ZXing
+} // namespace ZXing::QRCode

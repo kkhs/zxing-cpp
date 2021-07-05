@@ -16,17 +16,16 @@
 */
 
 #include "QREncoder.h"
+
+#include "BitArray.h"
+#include "CharacterSetECI.h"
+#include "GenericGF.h"
+#include "QREncodeResult.h"
+#include "QRErrorCorrectionLevel.h"
 #include "QRMaskUtil.h"
 #include "QRMatrixUtil.h"
-#include "QRErrorCorrectionLevel.h"
-#include "QREncodeResult.h"
-#include "GenericGF.h"
 #include "ReedSolomonEncoder.h"
-#include "BitArray.h"
-#include "CharacterSet.h"
-#include "CharacterSetECI.h"
 #include "TextEncoder.h"
-#include "ZXStrConvWorkaround.h"
 #include "ZXTestSupport.h"
 
 #include <algorithm>
@@ -34,8 +33,7 @@
 #include <limits>
 #include <stdexcept>
 
-namespace ZXing {
-namespace QRCode {
+namespace ZXing::QRCode {
 
 static const CharacterSet DEFAULT_BYTE_MODE_ENCODING = CharacterSet::ISO8859_1;
 
@@ -83,7 +81,7 @@ int GetAlphanumericCode(int code)
 * if it is Shift_JIS, and the input is only double-byte Kanji, then we return {@link Mode#KANJI}.
 */
 ZXING_EXPORT_TEST_ONLY
-CodecMode::Mode ChooseMode(const std::wstring& content, CharacterSet encoding)
+CodecMode ChooseMode(const std::wstring& content, CharacterSet encoding)
 {
 	if (encoding == CharacterSet::Shift_JIS && IsOnlyDoubleByteKanji(content)) {
 		// Choose Kanji mode if all input are double-byte characters
@@ -111,20 +109,33 @@ CodecMode::Mode ChooseMode(const std::wstring& content, CharacterSet encoding)
 	return CodecMode::BYTE;
 }
 
+/*
+* See ISO/IEC 18004:2015 Table 4
+*/
 static void AppendECI(CharacterSet eci, BitArray& bits)
 {
-	bits.appendBits(CodecMode::ECI, 4);
-	// This is correct for values up to 127, which is all we need now.
-	bits.appendBits(CharacterSetECI::ValueForCharset(eci), 8);
+	int eciValue = CharacterSetECI::ValueForCharset(eci);
+	if (eciValue >= 0 && eciValue <= 999999) {
+		bits.appendBits(static_cast<int>(CodecMode::ECI), 4);
+		if (eciValue <= 127) {
+			bits.appendBits(eciValue, 8);
+		}
+		else if (eciValue <= 16383) {
+			bits.appendBits(0x8000 | eciValue, 16);
+		}
+		else {
+			bits.appendBits(0xC00000 | eciValue, 24);
+		}
+	}
 }
 
 /**
 * Append mode info. On success, store the result in "bits".
 */
 ZXING_EXPORT_TEST_ONLY
-void AppendModeInfo(CodecMode::Mode mode, BitArray& bits)
+void AppendModeInfo(CodecMode mode, BitArray& bits)
 {
-	bits.appendBits(mode, 4);
+	bits.appendBits(static_cast<int>(mode), 4);
 }
 
 
@@ -132,9 +143,9 @@ void AppendModeInfo(CodecMode::Mode mode, BitArray& bits)
 * Append length info. On success, store the result in "bits".
 */
 ZXING_EXPORT_TEST_ONLY
-void AppendLengthInfo(int numLetters, const Version& version, CodecMode::Mode mode, BitArray& bits)
+void AppendLengthInfo(int numLetters, const Version& version, CodecMode mode, BitArray& bits)
 {
-	int numBits = CodecMode::CharacterCountBits(mode, version);
+	int numBits = CharacterCountBits(mode, version);
 	if (numLetters >= (1 << numBits)) {
 		return throw std::invalid_argument(std::to_string(numLetters) + " is bigger than " + std::to_string((1 << numBits) - 1));
 	}
@@ -236,7 +247,7 @@ void AppendKanjiBytes(const std::wstring& content, BitArray& bits)
 * Append "bytes" in "mode" mode (encoding) into "bits". On success, store the result in "bits".
 */
 ZXING_EXPORT_TEST_ONLY
-void AppendBytes(const std::wstring& content, CodecMode::Mode mode, CharacterSet encoding, BitArray& bits)
+void AppendBytes(const std::wstring& content, CodecMode mode, CharacterSet encoding, BitArray& bits)
 {
 	switch (mode) {
 		case CodecMode::NUMERIC:
@@ -252,7 +263,7 @@ void AppendBytes(const std::wstring& content, CodecMode::Mode mode, CharacterSet
 			AppendKanjiBytes(content, bits);
 			break;
 		default:
-			throw std::invalid_argument("Invalid mode: " + std::to_string(mode));
+			throw std::invalid_argument("Invalid mode: " + std::to_string(static_cast<int>(mode)));
 	}
 }
 
@@ -322,7 +333,6 @@ struct BlockPair
 };
 
 
-
 /**
 * Get number of data bytes and number of error correction bytes for block id "blockID". Store
 * the result in "numDataBytesInBlock", and "numECBytesInBlock". See table 12 in 8.5.1 of
@@ -379,17 +389,15 @@ void GetNumDataBytesAndNumECBytesForBlockID(int numTotalBytes, int numDataBytes,
 }
 
 ZXING_EXPORT_TEST_ONLY
-void GenerateECBytes(const ByteArray& dataBytes, int numEcBytesInBlock, ByteArray& ecBytes)
+void GenerateECBytes(const ByteArray& dataBytes, int numEcBytes, ByteArray& ecBytes)
 {
-	size_t numDataBytes = dataBytes.size();
-	std::vector<int> toEncode(numDataBytes + numEcBytesInBlock, 0);
-	std::copy(dataBytes.begin(), dataBytes.end(), toEncode.begin());
-	ReedSolomonEncoder(GenericGF::QRCodeField256()).encode(toEncode, numEcBytesInBlock);
+	std::vector<int> message(dataBytes.size() + numEcBytes, 0);
+	std::copy(dataBytes.begin(), dataBytes.end(), message.begin());
+	ReedSolomonEncode(GenericGF::QRCodeField256(), message, numEcBytes);
 
-	ecBytes.resize(numEcBytesInBlock);
-	for (int i = 0; i < numEcBytesInBlock; i++) {
-		ecBytes[i] = static_cast<uint8_t>(toEncode[numDataBytes + i]);
-	}
+	ecBytes.resize(numEcBytes);
+	std::transform(message.end() - numEcBytes, message.end(), ecBytes.begin(),
+				   [](auto c) { return static_cast<uint8_t>(c); });
 }
 
 
@@ -459,8 +467,8 @@ static int ChooseMaskPattern(const BitArray& bits, ErrorCorrectionLevel ecLevel,
 	int minPenalty = std::numeric_limits<int>::max();  // Lower penalty is better.
 	int bestMaskPattern = -1;
 	// We try all mask patterns to choose the best one.
-	for (int maskPattern = 0; maskPattern < MatrixUtil::NUM_MASK_PATTERNS; maskPattern++) {
-		MatrixUtil::BuildMatrix(bits, ecLevel, version, maskPattern, matrix);
+	for (int maskPattern = 0; maskPattern < NUM_MASK_PATTERNS; maskPattern++) {
+		BuildMatrix(bits, ecLevel, version, maskPattern, matrix);
 		int penalty = MaskUtil::CalculateMaskPenalty(matrix);
 		if (penalty < minPenalty) {
 			minPenalty = penalty;
@@ -470,16 +478,16 @@ static int ChooseMaskPattern(const BitArray& bits, ErrorCorrectionLevel ecLevel,
 	return bestMaskPattern;
 }
 
-static int CalculateBitsNeeded(CodecMode::Mode mode, const BitArray& headerBits, const BitArray& dataBits, const Version& version)
+static int CalculateBitsNeeded(CodecMode mode, const BitArray& headerBits, const BitArray& dataBits, const Version& version)
 {
-	return headerBits.size() + CodecMode::CharacterCountBits(mode, version) + dataBits.size();
+	return headerBits.size() + CharacterCountBits(mode, version) + dataBits.size();
 }
 
 /**
 * Decides the smallest version of QR code that will contain all of the provided data.
 * @throws WriterException if the data cannot fit in any version
 */
-static const Version& RecommendVersion(ErrorCorrectionLevel ecLevel, CodecMode::Mode mode, const BitArray& headerBits, const BitArray& dataBits)
+static const Version& RecommendVersion(ErrorCorrectionLevel ecLevel, CodecMode mode, const BitArray& headerBits, const BitArray& dataBits)
 {
 	// Hard part: need to know version to know how many bits length takes. But need to know how many
 	// bits it takes to know version. First we take a guess at version by assuming version will be
@@ -492,8 +500,8 @@ static const Version& RecommendVersion(ErrorCorrectionLevel ecLevel, CodecMode::
 	return ChooseVersion(bitsNeeded, ecLevel);
 }
 
-EncodeResult
-Encoder::Encode(const std::wstring& content, ErrorCorrectionLevel ecLevel, CharacterSet charset, int versionNumber, bool useGs1Format, int maskPattern)
+EncodeResult Encode(const std::wstring& content, ErrorCorrectionLevel ecLevel, CharacterSet charset, int versionNumber,
+					bool useGs1Format, int maskPattern)
 {
 	bool charsetWasUnknown = charset == CharacterSet::Unknown;
 	if (charsetWasUnknown) {
@@ -502,7 +510,7 @@ Encoder::Encode(const std::wstring& content, ErrorCorrectionLevel ecLevel, Chara
 
 	// Pick an encoding mode appropriate for the content. Note that this will not attempt to use
 	// multiple modes / segments even if that were more efficient. Twould be nice.
-	CodecMode::Mode mode = ChooseMode(content, charset);
+	CodecMode mode = ChooseMode(content, charset);
 
 	// This will store the header information, like mode and
 	// length, as well as "header" segments like an ECI segment.
@@ -573,12 +581,11 @@ Encoder::Encode(const std::wstring& content, ErrorCorrectionLevel ecLevel, Chara
 	output.maskPattern = maskPattern != -1 ? maskPattern : ChooseMaskPattern(finalBits, ecLevel, *version, matrix);
 
 	// Build the matrix and set it to "qrCode".
-	MatrixUtil::BuildMatrix(finalBits, ecLevel, *version, output.maskPattern, matrix);
+	BuildMatrix(finalBits, ecLevel, *version, output.maskPattern, matrix);
 
 	output.matrix = ToBitMatrix(matrix);
 
 	return output;
 }
 
-} // QRCode
-} // ZXing
+} // namespace ZXing::QRCode

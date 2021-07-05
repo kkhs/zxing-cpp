@@ -16,14 +16,12 @@
 */
 
 #include "QRFormatInformation.h"
+
 #include "BitHacks.h"
 
 #include <array>
 
-namespace ZXing {
-namespace QRCode {
-
-namespace {
+namespace ZXing::QRCode {
 
 static const int FORMAT_INFO_MASK_QR = 0x5412;
 
@@ -65,8 +63,6 @@ static const std::array<int, 2> FORMAT_INFO_DECODE_LOOKUP[] = {
 	{0x2BED, 0x1F},
 };
 
-} // anonymous
-
 FormatInformation::FormatInformation(int formatInfo)
 {
 	// Bits 3,4
@@ -89,7 +85,7 @@ FormatInformation::DecodeFormatInformation(uint32_t formatInfoBits1, uint32_t fo
 	int bestDifference = 32;
 	int bestFormatInfo = -1;
 
-	// Some QR codes apparently do not apply the XOR mask. Try without and with additional maksing.
+	// Some QR codes apparently do not apply the XOR mask. Try without and with additional masking.
 	for (auto mask : {0, FORMAT_INFO_MASK_QR})
 		for (uint32_t bits : {formatInfoBits1 ^ mask, formatInfoBits2 ^ mask})
 			for (auto& [pattern, decodedInfo] : FORMAT_INFO_DECODE_LOOKUP)
@@ -106,5 +102,4 @@ FormatInformation::DecodeFormatInformation(uint32_t formatInfoBits1, uint32_t fo
 	return {};
 }
 
-} // QRCode
-} // ZXing
+} // namespace ZXing::QRCode

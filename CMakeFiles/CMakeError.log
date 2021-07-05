@@ -1,0 +1,14 @@
+Performing C++ SOURCE FILE Test COMPILER_NEEDS_FLOAT_STORE failed with the following output:
+Change Dir: /Users/satoshi_watanabe/dev/kakehashi/zxing-cpp/CMakeFiles/CMakeTmp
+
+Run Build Command(s):/usr/bin/make -f Makefile cmTC_ad94d/fast && /Applications/Xcode.app/Contents/Developer/usr/bin/make  -f CMakeFiles/cmTC_ad94d.dir/build.make CMakeFiles/cmTC_ad94d.dir/build
+Building CXX object CMakeFiles/cmTC_ad94d.dir/src.cxx.o
+/usr/local/Cellar/emscripten/2.0.25/libexec/em++ -DCOMPILER_NEEDS_FLOAT_STORE  -ffloat-store -std=gnu++17 -MD -MT CMakeFiles/cmTC_ad94d.dir/src.cxx.o -MF CMakeFiles/cmTC_ad94d.dir/src.cxx.o.d -o CMakeFiles/cmTC_ad94d.dir/src.cxx.o -c /Users/satoshi_watanabe/dev/kakehashi/zxing-cpp/CMakeFiles/CMakeTmp/src.cxx
+clang-13: warning: optimization flag '-ffloat-store' is not supported [-Wignored-optimization-argument]
+Linking CXX executable cmTC_ad94d.js
+/usr/local/Cellar/cmake/3.20.5/bin/cmake -E cmake_link_script CMakeFiles/cmTC_ad94d.dir/link.txt --verbose=1
+/usr/local/Cellar/emscripten/2.0.25/libexec/em++ @CMakeFiles/cmTC_ad94d.dir/objects1.rsp -o cmTC_ad94d.js 
+
+
+Source file was:
+int main() { return 0; }

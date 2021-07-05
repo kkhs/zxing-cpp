@@ -25,7 +25,7 @@ if (MSVC)
     )
 else()
     set (ZXING_CORE_LOCAL_DEFINES ${ZXING_CORE_LOCAL_DEFINES}
-        -Wall -Wextra -Wno-missing-braces)
+        -Wall -Wextra -Wno-missing-braces -Werror=undef)
 endif()
 
 
@@ -56,6 +56,7 @@ set (COMMON_FILES
     src/GenericGFPoly.h
     src/GenericGFPoly.cpp
     src/GTIN.h
+    src/GTIN.cpp
     src/LogMatrix.h
     src/Matrix.h
     src/Pattern.h
@@ -71,7 +72,6 @@ set (COMMON_FILES
     src/ZXConfig.h
     src/ZXNullable.h
     src/ZXContainerAlgorithms.h
-    src/ZXStrConvWorkaround.h
     src/ZXTestSupport.h
 )
 if (BUILD_READERS)
@@ -113,6 +113,7 @@ if (BUILD_READERS)
         src/ResultPoint.cpp
         src/TextDecoder.h
         src/TextDecoder.cpp
+        src/ThresholdBinarizer.h
         src/WhiteRectDetector.h
         src/WhiteRectDetector.cpp
     )
@@ -159,12 +160,11 @@ endif()
 
 
 set (DATAMATRIX_FILES
+    src/datamatrix/DMBitLayout.h
+    src/datamatrix/DMBitLayout.cpp
 )
 if (BUILD_READERS)
     set (DATAMATRIX_FILES ${DATAMATRIX_FILES}
-        src/datamatrix/DMBitMatrixParser.h
-        src/datamatrix/DMBitMatrixParser.cpp
-        src/datamatrix/DMECB.h
         src/datamatrix/DMDataBlock.h
         src/datamatrix/DMDataBlock.cpp
         src/datamatrix/DMDecoder.h
@@ -182,8 +182,6 @@ if (BUILD_WRITERS)
         src/datamatrix/DMECEncoder.h
         src/datamatrix/DMECEncoder.cpp
         src/datamatrix/DMEncoderContext.h
-        src/datamatrix/DMDefaultPlacement.h
-        src/datamatrix/DMDefaultPlacement.cpp
         src/datamatrix/DMHighLevelEncoder.h
         src/datamatrix/DMHighLevelEncoder.cpp
         src/datamatrix/DMSymbolInfo.h
@@ -225,12 +223,12 @@ if (BUILD_READERS)
         src/oned/ODCode93Reader.cpp
         src/oned/ODCode128Reader.h
         src/oned/ODCode128Reader.cpp
-        src/oned/ODEAN8Reader.h
-        src/oned/ODEAN8Reader.cpp
-        src/oned/ODEAN13Reader.h
-        src/oned/ODEAN13Reader.cpp
-        src/oned/ODEANManufacturerOrgSupport.h
-        src/oned/ODEANManufacturerOrgSupport.cpp
+        src/oned/ODDataBarCommon.h
+        src/oned/ODDataBarCommon.cpp
+        src/oned/ODDataBarReader.h
+        src/oned/ODDataBarReader.cpp
+        src/oned/ODDataBarExpandedReader.h
+        src/oned/ODDataBarExpandedReader.cpp
         src/oned/ODITFReader.h
         src/oned/ODITFReader.cpp
         src/oned/ODMultiUPCEANReader.h
@@ -239,18 +237,6 @@ if (BUILD_READERS)
         src/oned/ODReader.cpp
         src/oned/ODRowReader.h
         src/oned/ODRowReader.cpp
-        src/oned/ODRSS14Reader.h
-        src/oned/ODRSS14Reader.cpp
-        src/oned/ODRSSExpandedReader.h
-        src/oned/ODRSSExpandedReader.cpp
-        src/oned/ODUPCAReader.h
-        src/oned/ODUPCAReader.cpp
-        src/oned/ODUPCEANExtensionSupport.h
-        src/oned/ODUPCEANExtensionSupport.cpp
-        src/oned/ODUPCEANReader.h
-        src/oned/ODUPCEANReader.cpp
-        src/oned/ODUPCEReader.h
-        src/oned/ODUPCEReader.cpp
     )
 endif()
 if (BUILD_WRITERS)
@@ -283,19 +269,12 @@ set (ONED_RSS_FILES
 )
 if (BUILD_READERS)
     set (ONED_RSS_FILES ${ONED_RSS_FILES}
-        src/oned/rss/ODRSSDataCharacter.h
         src/oned/rss/ODRSSExpandedBinaryDecoder.h
         src/oned/rss/ODRSSExpandedBinaryDecoder.cpp
-        src/oned/rss/ODRSSExpandedPair.h
-        src/oned/rss/ODRSSExpandedRow.h
         src/oned/rss/ODRSSFieldParser.h
         src/oned/rss/ODRSSFieldParser.cpp
-        src/oned/rss/ODRSSFinderPattern.h
         src/oned/rss/ODRSSGenericAppIdDecoder.h
         src/oned/rss/ODRSSGenericAppIdDecoder.cpp
-        src/oned/rss/ODRSSPair.h
-        src/oned/rss/ODRSSReaderHelper.h
-        src/oned/rss/ODRSSReaderHelper.cpp
     )
 endif()
 
@@ -474,6 +453,8 @@ add_library(ZXing::ZXing ALIAS ZXing)
 add_library(ZXing::Core ALIAS ZXing)
 
 set_target_properties(ZXing PROPERTIES EXPORT_NAME ZXing)
+# force position indepent code to be able to link it as static lib into a DLL (e.g. the python module)
+set_target_properties(ZXing PROPERTIES POSITION_INDEPENDENT_CODE ON)
 if (PROJECT_VERSION)
     set_target_properties(ZXing PROPERTIES VERSION ${PROJECT_VERSION})
     set_target_properties(ZXing PROPERTIES SOVERSION ${PROJECT_VERSION_MAJOR})
@@ -488,3 +469,12 @@ install (
     ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
     INCLUDES DESTINATION include
 )
+
+if(MSVC)
+    set_target_properties(ZXing PROPERTIES
+        COMPILE_PDB_NAME ZXing
+        COMPILE_PDB_OUTPUT_DIR ${CMAKE_CURRENT_BINARY_DIR})
+    install(FILES ${CMAKE_CURRENT_BINARY_DIR}/ZXing.pdb
+            DESTINATION ${CMAKE_INSTALL_LIBDIR}
+            CONFIGURATIONS Debug RelWithDebInfo)
+endif()

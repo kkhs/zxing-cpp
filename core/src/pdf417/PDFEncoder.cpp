@@ -19,7 +19,6 @@
 #include "PDFEncoder.h"
 #include "PDFHighLevelEncoder.h"
 #include <array>
-#include <cmath>
 #include <vector>
 #include <stdexcept>
 
@@ -309,7 +308,7 @@ static const short* EC_COEFFICIENTS[] = {EC_COEFFICIENTS_L0, EC_COEFFICIENTS_L1,
 * @param errorCorrectionLevel the error correction level (0-8)
 * @return the number of codewords generated for error correction
 */
-static inline int GetErrorCorrectionCodewordCount(int errorCorrectionLevel)
+static int GetErrorCorrectionCodewordCount(int errorCorrectionLevel)
 {
 	return 1 << (errorCorrectionLevel + 1);
 }
@@ -496,7 +495,6 @@ static void DetermineDimensions(int minCols, int maxCols, int minRows, int maxRo
 		if (rows < minRows) {
 			outCols = minCols;
 			outRows = minRows;
-			haveDimension = true;
 		}
 		else {
 			throw std::invalid_argument("Unable to fit message in columns");

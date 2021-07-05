@@ -16,20 +16,18 @@
 */
 
 #include "CharacterSetECI.h"
-#include "CharacterSet.h"
+#include "TextDecoder.h"
 
+#include <cctype>
 #include <map>
-#include <cstring>
 #include <utility>
 
-namespace ZXing {
-
-namespace {
+namespace ZXing::CharacterSetECI {
 
 static const std::map<int, CharacterSet> ECI_VALUE_TO_CHARSET = {
-	{0,  CharacterSet::Cp437},
-	{1,  CharacterSet::ISO8859_1},
-	{2,  CharacterSet::Cp437},
+	{0,  CharacterSet::Cp437}, // Obsolete
+	{1,  CharacterSet::ISO8859_1}, // Obsolete
+	{2,  CharacterSet::Cp437}, // Obsolete but still used by PDF417 Macro fields (ISO/IEC 15438:2015 Annex H.2.3)
 	{3,  CharacterSet::ISO8859_1},
 	{4,  CharacterSet::ISO8859_2},
 	{5,  CharacterSet::ISO8859_3},
@@ -57,9 +55,26 @@ static const std::map<int, CharacterSet> ECI_VALUE_TO_CHARSET = {
 	{29, CharacterSet::GB18030},
 	{30, CharacterSet::EUC_KR},
 	{170, CharacterSet::ASCII},
+	{899, CharacterSet::BINARY},
 };
 
-static const std::map<const char*, CharacterSet> ECI_NAME_TO_CHARSET = {
+struct CompareNoCase {
+	bool operator ()(const char* a, const char* b) const {
+		while (*a != '\0' && *b != '\0') {
+			auto ca = std::tolower(*a++);
+			auto cb = std::tolower(*b++);
+			if (ca < cb) {
+				return true;
+			}
+			else if (ca > cb) {
+				return false;
+			}
+		}
+		return *a == '\0' && *b != '\0';
+	}
+};
+
+static const std::map<const char *, CharacterSet, CompareNoCase> ECI_NAME_TO_CHARSET = {
 	{"Cp437",		CharacterSet::Cp437},
 	{"ISO8859_1",	CharacterSet::ISO8859_1},
 	{"ISO-8859-1",	CharacterSet::ISO8859_1},
@@ -112,47 +127,71 @@ static const std::map<const char*, CharacterSet> ECI_NAME_TO_CHARSET = {
 	{"GB2312",		CharacterSet::GB2312},
 	{"GB18030",		CharacterSet::GB18030},
 	{"EUC_CN",		CharacterSet::GB18030},
-	{"EUC-CN",		CharacterSet::GB18030 },
+	{"EUC-CN",		CharacterSet::GB18030},
 	{"GBK",			CharacterSet::GB18030},
 	{"EUC_KR",		CharacterSet::EUC_KR},
-	{"EUC-KR",		CharacterSet::EUC_KR },
+	{"EUC-KR",		CharacterSet::EUC_KR},
+	{"BINARY",		CharacterSet::BINARY},
 };
 
-} // anonymous
-
-CharacterSet
-CharacterSetECI::CharsetFromValue(int value)
+CharacterSet CharsetFromValue(int value)
 {
 	auto it = ECI_VALUE_TO_CHARSET.find(value);
-	if (it != ECI_VALUE_TO_CHARSET.end())
-	{
+	if (it != ECI_VALUE_TO_CHARSET.end()) {
 		return it->second;
 	}
 	return CharacterSet::Unknown;
 }
 
-int
-CharacterSetECI::ValueForCharset(CharacterSet charset)
+int ValueForCharset(CharacterSet charset)
 {
-	for (auto [key, value] : ECI_VALUE_TO_CHARSET)
-	{
-		if (value == charset)
-		{
+	// Special case ISO8859_1 to avoid obsolete ECI 1
+	if (charset == CharacterSet::ISO8859_1) {
+		return 3;
+	}
+	for (auto& [key, value] : ECI_VALUE_TO_CHARSET) {
+		if (value == charset) {
 			return key;
 		}
 	}
-	return 0;
+	return -1;
 }
 
-CharacterSet
-CharacterSetECI::CharsetFromName(const char* name)
+CharacterSet CharsetFromName(const char* name)
 {
 	auto it = ECI_NAME_TO_CHARSET.find(name);
-	if (it != ECI_NAME_TO_CHARSET.end())
-	{
+	if (it != ECI_NAME_TO_CHARSET.end()) {
 		return it->second;
 	}
 	return CharacterSet::Unknown;
-};
+}
 
-} // ZXing
+CharacterSet InitEncoding(const std::string& name, CharacterSet encodingDefault)
+{
+	if (!name.empty()) {
+		auto encodingInit = CharacterSetECI::CharsetFromName(name.c_str());
+		if (encodingInit != CharacterSet::Unknown) {
+			encodingDefault = encodingInit;
+		}
+	}
+
+	return encodingDefault;
+}
+
+CharacterSet OnChangeAppendReset(const int eci, std::wstring& encoded, std::string& data, CharacterSet encoding)
+{
+	// Character set ECIs only
+	if (eci >= 0 && eci <= 899) {
+		auto encodingNew = CharacterSetECI::CharsetFromValue(eci);
+		if (encodingNew != CharacterSet::Unknown && encodingNew != encoding) {
+			// Encode data so far in current encoding and reset
+			TextDecoder::Append(encoded, reinterpret_cast<const uint8_t*>(data.data()), data.size(), encoding);
+			data.clear();
+			encoding = encodingNew;
+		}
+	}
+
+	return encoding;
+}
+
+} // namespace ZXing::CharacterSetECI

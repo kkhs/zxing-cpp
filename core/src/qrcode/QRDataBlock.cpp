@@ -16,13 +16,12 @@
 */
 
 #include "QRDataBlock.h"
-#include "QRVersion.h"
+
 #include "QRErrorCorrectionLevel.h"
-#include "DecodeStatus.h"
+#include "QRVersion.h"
 #include "ZXContainerAlgorithms.h"
 
-namespace ZXing {
-namespace QRCode {
+namespace ZXing::QRCode {
 
 std::vector<DataBlock> DataBlock::GetDataBlocks(const ByteArray& rawCodewords, const Version& version, ErrorCorrectionLevel ecLevel)
 {
@@ -84,5 +83,4 @@ std::vector<DataBlock> DataBlock::GetDataBlocks(const ByteArray& rawCodewords, c
 	return result;
 }
 
-} // QRCode
-} // ZXing
+} // namespace ZXing::QRCode

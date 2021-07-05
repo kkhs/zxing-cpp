@@ -16,19 +16,17 @@
 */
 
 #include "QRMatrixUtil.h"
+
+#include "BitArray.h"
+#include "BitHacks.h"
 #include "QRDataMask.h"
 #include "QRErrorCorrectionLevel.h"
 #include "QRVersion.h"
-#include "BitArray.h"
-#include "BitHacks.h"
-#include "ZXStrConvWorkaround.h"
 
-#include <array>
-#include <string>
 #include <stdexcept>
+#include <string>
 
-namespace ZXing {
-namespace QRCode {
+namespace ZXing::QRCode {
 
 // From Appendix D in JISX0510:2004 (p. 67)
 static const int VERSION_INFO_POLY = 0x1f25;  // 1 1111 0010 0101
@@ -86,7 +84,7 @@ static void EmbedPositionDetectionPattern(int xStart, int yStart, TritMatrix& ma
 		for (int x = 0; x < 7; ++x)
 			matrix.set(xStart + x, yStart + y, maxAbsComponent(PointI(x, y) - PointI(3, 3)) != 2);
 
-	// Surround the 7x7 pattern with one line of white space (sepration pattern)
+	// Surround the 7x7 pattern with one line of white space (separation pattern)
 	auto setIfInside = [&](int x, int y) {
 		if( x >= 0 && x < matrix.width() && y >= 0 && y < matrix.height())
 			matrix.set(x, y, 0);
@@ -171,7 +169,7 @@ static int CalculateBCHCode(int value, int poly) {
 // JISX0510:2004 (p.45) for details.
 static BitArray MakeTypeInfoBits(ErrorCorrectionLevel ecLevel, int maskPattern)
 {
-	if (maskPattern < 0 || maskPattern >= MatrixUtil::NUM_MASK_PATTERNS) {
+	if (maskPattern < 0 || maskPattern >= NUM_MASK_PATTERNS) {
 		throw std::invalid_argument("Invalid mask pattern");
 	}
 
@@ -308,8 +306,8 @@ static void EmbedDataBits(const BitArray& dataBits, int maskPattern, TritMatrix&
 
 // Build 2D matrix of QR Code from "dataBits" with "ecLevel", "version" and "getMaskPattern". On
 // success, store the result in "matrix" and return true.
-void
-MatrixUtil::BuildMatrix(const BitArray& dataBits, ErrorCorrectionLevel ecLevel, const Version& version, int maskPattern, TritMatrix& matrix)
+void BuildMatrix(const BitArray& dataBits, ErrorCorrectionLevel ecLevel, const Version& version, int maskPattern,
+				 TritMatrix& matrix)
 {
 	matrix.clear();
 	// Let's get started with embedding big squares at corners.
@@ -328,5 +326,4 @@ MatrixUtil::BuildMatrix(const BitArray& dataBits, ErrorCorrectionLevel ecLevel, 
 	EmbedDataBits(dataBits, maskPattern, matrix);
 }
 
-} // QRCode
-} // ZXing
+} // namespace ZXing::QRCode

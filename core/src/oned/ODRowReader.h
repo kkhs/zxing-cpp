@@ -25,8 +25,8 @@
 #include <cassert>
 #include <cstddef>
 #include <iterator>
+#include <limits>
 #include <memory>
-#include <type_traits>
 
 /*
 Code39 : 1:2/3, 5+4+1 (0x3|2x1 wide) -> 12-15 mods, v1-? | ToNarrowWide(OMG 1) == *
@@ -55,9 +55,6 @@ namespace OneD {
 /**
 * Encapsulates functionality and implementation that is common to all families
 * of one-dimensional barcodes.
-*
-* @author dswitkin@google.com (Daniel Switkin)
-* @author Sean Owen
 */
 class RowReader
 {
@@ -68,97 +65,12 @@ public:
 		virtual ~DecodingState() = default;
 	};
 
+	//TODO: this is only testing code -> move outside of this interface (and remove rowNumber parameter)
 	Result decodeSingleRow(int rowNumber, const BitArray& row) const;
 
 	virtual ~RowReader() {}
 
-	/**
-	* <p>Attempts to decode a one-dimensional barcode format given a single row of
-	* an image.</p>
-	*
-	* @param rowNumber row number from top of the row
-	* @param row the black/white pixel data of the row
-	* @param hints decode hints
-	* @return {@link Result} containing encoded string and start/end of barcode
-	* @throws NotFoundException if no potential barcode is found
-	* @throws ChecksumException if a potential barcode is found but does not pass its checksum
-	* @throws FormatException if a potential barcode is found but format is invalid
-	*/
-	virtual Result decodeRow(int rowNumber, const BitArray& row, std::unique_ptr<DecodingState>& state) const = 0;
-
-	virtual Result decodePattern(int rowNumber, const PatternView& row, std::unique_ptr<DecodingState>& state) const;
-
-	/**
-	* Scans the given bit range for a pattern identified by evaluating the function object match for each
-	* successive run of counters.size() bars. If the pattern is found, it returns the bit range with the
-	* pattern. Otherwise an empty range is returned.
-	*
-	* @param begin/end bit range to scan for pattern
-	* @param counters array into which to record counts
-	* @param match predicate that gets evaluated to identify the pattern
-	* @throws NotFoundException if counters cannot be filled entirely from row before running out
-	*  of pixels
-	*/
-	template <typename Iterator, typename Container, typename Predicate>
-	static Range<Iterator> FindPattern(Iterator begin, Iterator end, Container& counters, Predicate match) {
-		if (begin == end)
-			return {end, end};
-
-		Iterator li = begin, i = begin;
-		auto currentCounter = counters.begin();
-		typedef typename std::decay<decltype(*currentCounter)>::type CounterValue;
-		while ((i = BitArray::getNextSetTo(i, end, !*i)) != end) {
-			*currentCounter = static_cast<CounterValue>(i - li);
-			if (++currentCounter == counters.end()) {
-				if (match(begin, i, counters)) {
-					return {begin, i};
-				}
-				std::advance(begin, counters[0] + counters[1]);
-				std::copy(counters.begin() + 2, counters.end(), counters.begin());
-				std::advance(currentCounter, -2);
-			}
-			li = i;
-		}
-		// if we ran into the end, still set the currentCounter. see RecordPattern.
-		*currentCounter = static_cast<CounterValue>(i - li);
-
-		return {end, end};
-	}
-
-	/**
-	* Records the size of successive runs of white and black pixels in a row, starting at a given point.
-	* The values are recorded in the given array, and the number of runs recorded is equal to the size
-	* of the array. If the row starts on a white pixel at the given start point, then the first count
-	* recorded is the run of white pixels starting from that point; likewise it is the count of a run
-	* of black pixels if the row begin on a black pixels at that point.
-	*
-	* @param row row to count from
-	* @param start offset into row to start at
-	* @param counters array into which to record counts
-	* @throws NotFoundException if counters cannot be filled entirely from row before running out
-	*  of pixels
-	*/
-	template <typename Iterator, typename Container>
-	static Range<Iterator> RecordPattern(Iterator begin, Iterator end, Container& counters) {
-		// mark the last counter-slot as empty
-		counters.back() = 0;
-
-		auto range = FindPattern(begin, end, counters, [](Iterator, Iterator, Container&) { return true; });
-
-		// If we reached the end iterator but touched the last counter-slot, we accept the result.
-		if (range.end == end && counters.back() != 0)
-			return {begin, end};
-		else
-			return range;
-	}
-
-	template <typename Iterator, typename Container>
-	static Range<Iterator> RecordPatternInReverse(Iterator begin, Iterator end, Container& counters) {
-		std::reverse_iterator<Iterator> rbegin(end), rend(begin);
-		auto range = RecordPattern(rbegin, rend, counters);
-		std::reverse(counters.begin(), counters.end());
-		return {range.end.base(), range.begin.base()};
-	}
+	virtual Result decodePattern(int rowNumber, const PatternView& row, std::unique_ptr<DecodingState>& state) const = 0;
 
 	/**
 	 * Determines how closely a set of observed counts of runs of black/white values matches a given
@@ -197,8 +109,8 @@ public:
 
 	template <typename Counters, typename Pattern>
 	static float PatternMatchVariance(const Counters& counters, const Pattern& pattern, float maxIndividualVariance) {
-		assert(Size(counters) <= Size(pattern)); //TODO: this should test for equality, see ODCode128Reader.cpp:93
-		return PatternMatchVariance(counters.data(), pattern.data(), counters.size(), maxIndividualVariance);
+		assert(Size(counters) == Size(pattern));
+		return PatternMatchVariance(std::data(counters), std::data(pattern), std::size(counters), maxIndividualVariance);
 	}
 
 	/**
@@ -217,11 +129,11 @@ public:
 		float bestVariance = maxAvgVariance; // worst variance we'll accept
 		constexpr int INVALID_MATCH = -1;
 		int bestMatch = INVALID_MATCH;
-		for (size_t i = 0; i < patterns.size(); i++) {
+		for (int i = 0; i < Size(patterns); i++) {
 			float variance = PatternMatchVariance(counters, patterns[i], maxIndividualVariance);
 			if (variance < bestVariance) {
 				bestVariance = variance;
-				bestMatch = static_cast<int>(i);
+				bestMatch = i;
 			} else if (requireUnambiguousMatch && variance == bestVariance) {
 				// if we find a second 'best match' with the same variance, we can not reliably report to have a suitable match
 				bestMatch = INVALID_MATCH;
@@ -289,39 +201,19 @@ public:
 	template <int LEN, int SUM>
 	static int OneToFourBitPattern(const PatternView& view)
 	{
-		float moduleSize = static_cast<float>(view.sum(LEN)) / SUM;
-		int err = SUM;
-		int is[LEN];
-		float rs[LEN];
-		for (int i = 0; i < LEN; i++) {
-			float v = view[i] / moduleSize;
-			is[i] = int(v + .5f);
-			rs[i] = v - is[i];
-			err -= is[i];
-		}
-
-		if (std::abs(err) > 1)
-			return -1;
-
-		if (err) {
-			auto mi = err > 0 ? std::max_element(std::begin(rs), std::end(rs)) - std::begin(rs)
-							 : std::min_element(std::begin(rs), std::end(rs)) - std::begin(rs);
-			is[mi] += err;
-			rs[mi] -= err;
-		}
-
-		int pattern = 0;
-		for (int i = 0; i < LEN; i++)
-			pattern = (pattern << is[i]) | ~(0xffffffff << is[i]) * (~i & 1);
-
-		return pattern;
+		// TODO: make sure none of the elements in the normalized pattern exceeds 4
+		return ToInt(NormalizedPattern<LEN, SUM>(view));
 	}
 
+	/**
+	 * @brief Lookup the pattern in the table and return the character in alphabet at the same index.
+	 * @returns 0 if pattern is not found. Used to be -1 but that fails on systems where char is unsigned.
+	 */
 	template<typename INDEX, typename ALPHABET>
 	static char LookupBitPattern(int pattern, const INDEX& table, const ALPHABET& alphabet)
 	{
 		int i = IndexOf(table, pattern);
-		return i == -1 ? -1 : alphabet[i];
+		return i == -1 ? 0 : alphabet[i];
 	}
 
 	template<typename INDEX, typename ALPHABET>

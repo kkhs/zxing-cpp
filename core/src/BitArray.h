@@ -23,12 +23,13 @@
 #include "BitHacks.h"
 #endif
 
+#include <algorithm>
 #include <cassert>
 #include <cstdint>
 #include <iterator>
-#include <vector>
-#include <algorithm>
+#include <type_traits>
 #include <utility>
+#include <vector>
 
 namespace ZXing {
 
@@ -179,7 +180,7 @@ public:
 
 	// If you know exactly how may bits you are going to iterate
 	// and that you access bit in sequence, iterator is faster than get().
-	// However, be extremly careful since there is no check whatsoever.
+	// However, be extremely careful since there is no check whatsoever.
 	// (Performance is the reason for the iterator to exist in the first place.)
 #ifdef ZX_FAST_BIT_STORAGE
 	Iterator iterAt(int i) const noexcept { return {_bits.cbegin() + i}; }
@@ -356,15 +357,27 @@ public:
 };
 
 template<typename T, typename = std::enable_if_t<std::is_integral_v<T>>>
-inline T& AppendBit(T& val, bool bit)
+T& AppendBit(T& val, bool bit)
 {
-	return (val <<= 1) |= bit;
+	return (val <<= 1) |= static_cast<T>(bit);
+}
+
+template <typename ARRAY, typename = std::enable_if_t<std::is_integral_v<typename ARRAY::value_type>>>
+int ToInt(const ARRAY& a)
+{
+	assert(Reduce(a) <= 32);
+
+	int pattern = 0;
+	for (int i = 0; i < Size(a); i++)
+		pattern = (pattern << a[i]) | ~(0xffffffff << a[i]) * (~i & 1);
+	return pattern;
 }
 
 template <typename T = int, typename = std::enable_if_t<std::is_integral_v<T>>>
 T ToInt(const BitArray& bits, int pos = 0, int count = 8 * sizeof(T))
 {
 	assert(0 <= count && count <= 8 * (int)sizeof(T));
+	assert(0 <= pos && pos + count <= bits.size());
 
 	count = std::min(count, bits.size());
 	int res = 0;
@@ -372,6 +385,16 @@ T ToInt(const BitArray& bits, int pos = 0, int count = 8 * sizeof(T))
 	for (int i = 0; i < count; ++i, ++it)
 		AppendBit(res, *it);
 
+	return res;
+}
+
+template <typename T = int, typename = std::enable_if_t<std::is_integral_v<T>>>
+std::vector<T> ToInts(const BitArray& bits, int wordSize, int totalWords)
+{
+	assert(totalWords >= bits.size() / wordSize);
+	std::vector<int> res(totalWords, 0);
+	for (int i = 0; i < bits.size(); i += wordSize)
+		res[i/wordSize] = ToInt(bits, i, wordSize);
 	return res;
 }
 

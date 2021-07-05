@@ -17,16 +17,14 @@
 */
 
 #include "ODCode93Reader.h"
+
 #include "Result.h"
-#include "BitArray.h"
 #include "ZXContainerAlgorithms.h"
 
 #include <array>
 #include <string>
 
-namespace ZXing {
-
-namespace OneD {
+namespace ZXing::OneD {
 
 // Note that 'abcd' are dummy characters in place of control characters.
 static const char ALPHABET[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-. $/+%abcd*";
@@ -34,7 +32,7 @@ static const char ALPHABET[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-. $/+%abcd*
 /**
 * Each character consist of 3 bars and 3 spaces and is 9 modules wide in total.
 * Each bar and space is from 1 to 4 modules wide.
-* These represent the encodings of characters. Each module is asigned 1 bit.
+* These represent the encodings of characters. Each module is assigned 1 bit.
 * The 9 least-significant bits of each int correspond to the 9 modules in a symbol.
 * Note: bit 9 (the first) is always 1, bit 1 (the last) is always 0.
 */
@@ -52,35 +50,6 @@ static_assert(Size(ALPHABET) - 1 == Size(CHARACTER_ENCODINGS), "table size misma
 static const int ASTERISK_ENCODING = 0x15E;
 
 using CounterContainer = std::array<int, 6>;
-
-static int
-ToPattern(const CounterContainer& counters)
-{
-	// each bar/space is 1-4 modules wide, the sum of all is 9 modules wide
-	int sum = Reduce(counters);
-	int pattern = 0;
-	for (int i = 0, count = Size(counters); i < count; ++i) {
-		int scaled = (counters[i] * 9 + (sum/2)) / sum; // non-float version of RoundToNearest(counters[i] * 9.0f / sum);
-		if (scaled < 1 || scaled > 4) {
-			return -1;
-		}
-		pattern <<= scaled;
-		pattern |= ~(0xffffffff << scaled) * (~i & 1);
-	}
-	return pattern;
-}
-
-static BitArray::Range
-FindAsteriskPattern(const BitArray& row)
-{
-	CounterContainer counters;
-
-	return RowReader::FindPattern(
-	    row.getNextSet(row.begin()), row.end(), counters,
-	    [](BitArray::Iterator, BitArray::Iterator, const CounterContainer& counters) {
-		    return ToPattern(counters) == ASTERISK_ENCODING;
-	    });
-}
 
 static bool
 CheckOneChecksum(const std::string& result, int checkPosition, int weightMax)
@@ -106,79 +75,29 @@ CheckChecksums(const std::string& result)
 // forward declare here. see ODCode39Reader.cpp. Not put in header to not pollute the public facing API
 bool DecodeExtendedCode39AndCode93(std::string& encoded, const char ctrl[4]);
 
-Result
-Code93Reader::decodeRow(int rowNumber, const BitArray& row, std::unique_ptr<DecodingState>&) const
-{
-	auto range = FindAsteriskPattern(row);
-	if (!range)
-		return Result(DecodeStatus::NotFound);
-
-	int xStart = static_cast<int>(range.begin - row.begin());
-	CounterContainer theCounters = {};
-	std::string result;
-	result.reserve(20);
-
-	do {
-		// Read off white space
-		range = RecordPattern(row.getNextSet(range.end), row.end(), theCounters);
-		if (!range)
-			return Result(DecodeStatus::NotFound);
-
-		int pattern = ToPattern(theCounters);
-		if (pattern < 0)
-			return Result(DecodeStatus::NotFound);
-
-		int i = IndexOf(CHARACTER_ENCODINGS, pattern);
-		if (i < 0)
-			return Result(DecodeStatus::NotFound);
-
-		result += ALPHABET[i];
-	} while (result.back() != '*');
-
-	result.pop_back(); // remove asterisk
-
-	// Should be at least one more black module
-	if (range.end == row.end() || !*range.end) {
-		return Result(DecodeStatus::NotFound);
-	}
-
-	// Need at least 2 checksum + 1 payload characters
-	if (result.length() < 3)
-		return Result(DecodeStatus::NotFound);
-
-	if (!CheckChecksums(result))
-		return Result(DecodeStatus::ChecksumError);
-
-	// Remove checksum digits
-	result.resize(result.length() - 2);
-
-	if (!DecodeExtendedCode39AndCode93(result, "abcd"))
-		return Result(DecodeStatus::FormatError);
-
-	int xStop = static_cast<int>(range.end - row.begin() - 1);
-	return Result(result, rowNumber, xStart, xStop, BarcodeFormat::Code93);
-}
-
 constexpr int CHAR_LEN = 6;
 constexpr int CHAR_SUM = 9;
-constexpr auto START_PATTERN = FixedPattern<CHAR_LEN, CHAR_SUM>{1, 1, 1, 1, 4, 1};
 // quite zone is half the width of a character symbol
 constexpr float QUITE_ZONE_SCALE = 0.5f;
 
-Result Code93Reader::decodePattern(int rowNumber, const PatternView &row, std::unique_ptr<DecodingState> &) const
+static bool IsStartGuard(const PatternView& window, int spaceInPixel)
+{
+	// The complete start pattern is FixedPattern<CHAR_LEN, CHAR_SUM>{1, 1, 1, 1, 4, 1}.
+	// Use only the first 4 elements which results in more than a 2x speedup. This is counter-intuitive since we save at
+	// most 1/3rd of the loop iterations in FindPattern. The reason might be a successful vectorization with the limited
+	// pattern size that is missed otherwise. We check for the remaining 2 slots for plausibility of the 4:1 ratio.
+	return IsPattern(window, FixedPattern<4, 4>{1, 1, 1, 1}, spaceInPixel, QUITE_ZONE_SCALE * 12) &&
+		   window[4] > 3 * window[5] - 2 &&
+		   RowReader::OneToFourBitPattern<CHAR_LEN, CHAR_SUM>(window) == ASTERISK_ENCODING;
+}
+
+Result Code93Reader::decodePattern(int rowNumber, const PatternView& row, std::unique_ptr<DecodingState>&) const
 {
 	// minimal number of characters that must be present (including start, stop, checksum and 1 payload characters)
 	int minCharCount = 5;
-	auto isStartOrStopSymbol = [](char c) { return c == '*'; };
-	auto decodePattern       = [](const PatternView& view) {
-        return LookupBitPattern(OneToFourBitPattern<CHAR_LEN, CHAR_SUM>(view), CHARACTER_ENCODINGS, ALPHABET);
-	};
 
-	auto next = FindLeftGuard(row, minCharCount * CHAR_LEN, START_PATTERN, QUITE_ZONE_SCALE * CHAR_SUM);
+	auto next = FindLeftGuard<CHAR_LEN>(row, minCharCount * CHAR_LEN, IsStartGuard);
 	if (!next.isValid())
-		return Result(DecodeStatus::NotFound);
-
-	if (!isStartOrStopSymbol(decodePattern(next))) // read off the start pattern
 		return Result(DecodeStatus::NotFound);
 
 	int xStart = next.pixelsInFront();
@@ -191,10 +110,10 @@ Result Code93Reader::decodePattern(int rowNumber, const PatternView &row, std::u
 		if (!next.skipSymbol())
 			return Result(DecodeStatus::NotFound);
 
-		txt += decodePattern(next);
-		if (txt.back() < 0)
+		txt += LookupBitPattern(OneToFourBitPattern<CHAR_LEN, CHAR_SUM>(next), CHARACTER_ENCODINGS, ALPHABET);
+		if (txt.back() == 0)
 			return Result(DecodeStatus::NotFound);
-	} while (!isStartOrStopSymbol(txt.back()));
+	} while (txt.back() != '*');
 
 	txt.pop_back(); // remove asterisk
 
@@ -219,6 +138,4 @@ Result Code93Reader::decodePattern(int rowNumber, const PatternView &row, std::u
 	return Result(txt, rowNumber, xStart, xStop, BarcodeFormat::Code93);
 }
 
-
-} // OneD
-} // ZXing
+} // namespace ZXing::OneD

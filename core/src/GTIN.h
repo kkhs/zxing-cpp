@@ -16,11 +16,15 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
+
 #include "ZXContainerAlgorithms.h"
 
 #include <string>
 
 namespace ZXing {
+
+class Result;
+
 namespace GTIN {
 
 template <typename T>
@@ -41,7 +45,17 @@ bool IsCheckDigitValid(const std::basic_string<T>& s)
 	return ComputeCheckDigit(s, true) == s.back();
 }
 
-//TODO: move EANManufacturerSupport code here
+/**
+ * Evaluate the prefix of the GTIN to estimate the country of origin. See
+ * <a href="http://en.wikipedia.org/wiki/List_of_GS1_country_codes">
+ * http://en.wikipedia.org/wiki/List_of_GS1_country_codes</a>.
+ */
+std::string LookupCountryIdentifier(const std::string& GTIN);
+
+std::string EanAddOn(const Result& result);
+
+std::string IssueNr(const std::string& ean2AddOn);
+std::string Price(const std::string& ean5AddOn);
 
 } // namespace GTIN
 } // namespace ZXing

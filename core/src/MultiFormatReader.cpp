@@ -16,16 +16,16 @@
 */
 
 #include "MultiFormatReader.h"
-#include "DecodeHints.h"
-#include "BarcodeFormat.h"
-#include "Result.h"
 
-#include "oned/ODReader.h"
-#include "qrcode/QRReader.h"
-#include "datamatrix/DMReader.h"
+#include "BarcodeFormat.h"
+#include "DecodeHints.h"
+#include "Result.h"
 #include "aztec/AZReader.h"
+#include "datamatrix/DMReader.h"
 #include "maxicode/MCReader.h"
+#include "oned/ODReader.h"
 #include "pdf417/PDFReader.h"
+#include "qrcode/QRReader.h"
 
 #include <memory>
 
@@ -45,9 +45,9 @@ MultiFormatReader::MultiFormatReader(const DecodeHints& hints)
 	if (formats.testFlag(BarcodeFormat::DataMatrix))
 		_readers.emplace_back(new DataMatrix::Reader(hints));
 	if (formats.testFlag(BarcodeFormat::Aztec))
-		_readers.emplace_back(new Aztec::Reader());
+		_readers.emplace_back(new Aztec::Reader(hints));
 	if (formats.testFlag(BarcodeFormat::PDF417))
-		_readers.emplace_back(new Pdf417::Reader());
+		_readers.emplace_back(new Pdf417::Reader(hints));
 	if (formats.testFlag(BarcodeFormat::MaxiCode))
 		_readers.emplace_back(new MaxiCode::Reader(hints));
 

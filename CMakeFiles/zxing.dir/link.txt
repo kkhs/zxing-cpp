@@ -1,0 +1,1 @@
+/usr/local/Cellar/emscripten/2.0.25/libexec/em++ -Os -DNDEBUG  --bind -s ENVIRONMENT=web -s DISABLE_EXCEPTION_CATCHING=0 -s FILESYSTEM=0 -s MODULARIZE=1 -s EXPORT_NAME=ZXing -s ALLOW_MEMORY_GROWTH=1 @CMakeFiles/zxing.dir/objects1.rsp -o zxing.js @CMakeFiles/zxing.dir/linklibs.rsp

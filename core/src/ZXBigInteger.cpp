@@ -15,6 +15,7 @@
 */
 
 #include "ZXBigInteger.h"
+
 #include "BitHacks.h"
 
 #include <algorithm>
@@ -112,7 +113,7 @@ static void SubMag(const Magnitude& a, const Magnitude& b, Magnitude& c)
 	}
 }
 
-static inline Block GetShiftedBlock(const Magnitude& num, size_t x, size_t y)
+static Block GetShiftedBlock(const Magnitude& num, size_t x, size_t y)
 {
 	Block part1 = (x == 0 || y == 0) ? Block(0) : (num[x - 1] >> (NB_BITS - y));
 	Block part2 = (x == num.size()) ? Block(0) : (num[x] << y);

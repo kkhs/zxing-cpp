@@ -17,8 +17,9 @@
 */
 
 #include "Reader.h"
-#include <vector>
+
 #include <memory>
+#include <vector>
 
 namespace ZXing {
 
@@ -44,6 +45,7 @@ private:
 	std::vector<std::unique_ptr<RowReader>> _readers;
 	bool _tryHarder;
 	bool _tryRotate;
+	bool _isPure;
 };
 
 } // OneD

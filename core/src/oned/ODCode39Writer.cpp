@@ -16,18 +16,17 @@
 */
 
 #include "ODCode39Writer.h"
-#include "ODWriterHelper.h"
-#include "ZXContainerAlgorithms.h"
-#include "TextEncoder.h"
+
 #include "CharacterSet.h"
-#include "ZXStrConvWorkaround.h"
+#include "ODWriterHelper.h"
+#include "TextEncoder.h"
+#include "ZXContainerAlgorithms.h"
 
 #include <array>
 #include <stdexcept>
 #include <vector>
 
-namespace ZXing {
-namespace OneD {
+namespace ZXing::OneD {
 
 static const char ALPHABET[] = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ-. *$/+%";
 
@@ -179,6 +178,4 @@ Code39Writer::encode(const std::wstring& contents, int width, int height) const
 	return WriterHelper::RenderResult(result, width, height, _sidesMargin >= 0 ? _sidesMargin : 10);
 }
 
-
-} // OneD
-} // ZXing
+} // namespace ZXing::OneD

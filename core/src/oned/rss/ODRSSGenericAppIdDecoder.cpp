@@ -16,18 +16,16 @@
 */
 
 #include "ODRSSGenericAppIdDecoder.h"
-#include "ODRSSFieldParser.h"
+
 #include "BitArray.h"
 #include "DecodeStatus.h"
-#include "ZXStrConvWorkaround.h"
+#include "ODRSSFieldParser.h"
 
 #include <limits>
 #include <stdexcept>
 #include <utility>
 
-namespace ZXing {
-namespace OneD {
-namespace RSS {
+namespace ZXing::OneD::DataBar {
 
 struct DecodedValue
 {
@@ -274,6 +272,11 @@ ParseAlphaBlock(const BitArray& bits, ParsingState& state, std::string& buffer)
 		state.position = alpha.newPosition;
 
 		if (alpha.isFNC1()) {
+			// Allow for some generators incorrectly placing a numeric latch "000" after an FNC1
+			if (state.position + 7 < bits.size() && ToInt(bits, state.position, 7) < 8) {
+				state.position += 3;
+			}
+			state.encoding = ParsingState::NUMERIC; // FNC1 latches to numeric encodation
 			return DecodedInformation(state.position, buffer); //end of the char block
 		}
 		buffer.push_back(alpha.value);
@@ -334,6 +337,11 @@ ParseIsoIec646Block(const BitArray& bits, ParsingState& state, std::string& buff
 		DecodedChar iso = DecodeIsoIec646(bits, state.position);
 		state.position = iso.newPosition;
 		if (iso.isFNC1()) {
+			// Allow for some generators incorrectly placing a numeric latch "000" after an FNC1
+			if (state.position + 7 < bits.size() && ToInt(bits, state.position, 7) < 8) {
+				state.position += 3;
+			}
+			state.encoding = ParsingState::NUMERIC; // FNC1 latches to numeric encodation
 			return DecodedInformation(state.position, buffer);
 		}
 		buffer.push_back(iso.value);
@@ -377,6 +385,8 @@ ParseNumericBlock(const BitArray& bits, ParsingState& state, std::string& buffer
 {
 	while (IsStillNumeric(bits, state.position)) {
 		DecodedNumeric numeric = DecodeNumeric(bits, state.position);
+		if (!numeric.isValid())
+			break;
 		state.position = numeric.newPosition;
 
 		if (numeric.isFirstDigitFNC1()) {
@@ -434,7 +444,7 @@ DoDecodeGeneralPurposeField(ParsingState& state, const BitArray& bits, std::stri
 }
 
 DecodeStatus
-GenericAppIdDecoder::DecodeGeneralPurposeField(const BitArray& bits, int pos, std::string& result)
+DecodeAppIdGeneralPurposeField(const BitArray& bits, int pos, std::string& result)
 {
 	try
 	{
@@ -450,7 +460,7 @@ GenericAppIdDecoder::DecodeGeneralPurposeField(const BitArray& bits, int pos, st
 }
 
 DecodeStatus
-GenericAppIdDecoder::DecodeAllCodes(const BitArray& bits, int pos, std::string& result)
+DecodeAppIdAllCodes(const BitArray& bits, int pos, std::string& result)
 {
 	try
 	{
@@ -460,9 +470,13 @@ GenericAppIdDecoder::DecodeAllCodes(const BitArray& bits, int pos, std::string& 
 			state.position = pos;
 			DecodedInformation info = DoDecodeGeneralPurposeField(state, bits, remaining);
 			std::string parsedFields;
-			auto status = FieldParser::ParseFieldsInGeneralPurpose(info.newString, parsedFields);
+			auto status = ParseFieldsInGeneralPurpose(info.newString, parsedFields);
 			if (StatusIsError(status)) {
-				return status;
+				if (result.empty() && remaining.empty()){
+					result = info.newString;
+					return DecodeStatus::NoError;
+				} else
+					return status;
 			}
 			result += parsedFields;
 			if (info.isRemaining()) {
@@ -485,6 +499,4 @@ GenericAppIdDecoder::DecodeAllCodes(const BitArray& bits, int pos, std::string& 
 	return DecodeStatus::FormatError;
 }
 
-} // RSS
-} // OneD
-} // ZXing
+} // namespace ZXing::OneD::RSS

@@ -16,20 +16,20 @@
 */
 
 #include "AZDetector.h"
+
 #include "AZDetectorResult.h"
 #include "BitHacks.h"
+#include "BitMatrix.h"
+#include "GenericGF.h"
+#include "GridSampler.h"
 #include "ReedSolomonDecoder.h"
 #include "ResultPoint.h"
-#include "GenericGF.h"
 #include "WhiteRectDetector.h"
-#include "GridSampler.h"
-#include "BitMatrix.h"
 
 #include <array>
 #include <utility>
 
-namespace ZXing {
-namespace Aztec {
+namespace ZXing::Aztec {
 
 template <typename T, typename = typename std::enable_if<std::is_floating_point<T>::value>::type>
 static int RoundToNearest(T x)
@@ -77,12 +77,12 @@ static int GetRotation(const std::array<int, 4>& sides, int length)
 	return -1;
 }
 
-inline static bool IsValidPoint(int x, int y, int imgWidth, int imgHeight)
+static bool IsValidPoint(int x, int y, int imgWidth, int imgHeight)
 {
 	return x >= 0 && x < imgWidth && y > 0 && y < imgHeight;
 }
 
-inline static bool IsValidPoint(const ResultPoint& point, int imgWidth, int imgHeight)
+static bool IsValidPoint(const ResultPoint& point, int imgWidth, int imgHeight)
 {
 	return IsValidPoint(RoundToNearest(point.x()), RoundToNearest(point.y()), imgWidth, imgHeight);
 }
@@ -139,7 +139,7 @@ static bool GetCorrectedParameterData(int64_t parameterData, bool compact, int& 
 		parameterWords[i] = (int)parameterData & 0xF;
 		parameterData >>= 4;
 	}
-	if (!ReedSolomonDecoder::Decode(GenericGF::AztecParam(), parameterWords, numECCodewords))
+	if (!ReedSolomonDecode(GenericGF::AztecParam(), parameterWords, numECCodewords))
 		return false;
 
 	// Toss the error correction.  Just return the data as an integer
@@ -156,7 +156,8 @@ static bool GetCorrectedParameterData(int64_t parameterData, bool compact, int& 
 * @param bullsEyeCorners the array of bull's eye corners
 * @throws NotFoundException in case of too many errors or invalid parameters
 */
-static bool ExtractParameters(const BitMatrix& image, const std::array<ResultPoint, 4>& bullsEyeCorners, bool compact, int nbCenterLayers, int& nbLayers, int& nbDataBlocks, int& shift)
+static bool ExtractParameters(const BitMatrix& image, const std::array<ResultPoint, 4>& bullsEyeCorners, bool compact,
+							  int nbCenterLayers, int& nbLayers, int& nbDataBlocks, bool& readerInit, int& shift)
 {
 	if (!IsValidPoint(bullsEyeCorners[0], image.width(), image.height()) || !IsValidPoint(bullsEyeCorners[1], image.width(), image.height()) ||
 		!IsValidPoint(bullsEyeCorners[2], image.width(), image.height()) || !IsValidPoint(bullsEyeCorners[3], image.width(), image.height())) {
@@ -203,14 +204,23 @@ static bool ExtractParameters(const BitMatrix& image, const std::array<ResultPoi
 		return false;
 	}
 
+	readerInit = false;
 	if (compact) {
 		// 8 bits:  2 bits layers and 6 bits data blocks
 		nbLayers = (correctedData >> 6) + 1;
+		if (nbLayers == 1 && (correctedData & 0x20)) { // ISO/IEC 24778:2008 Section 9 MSB artificially set
+			readerInit = true;
+			correctedData &= ~0x20;
+		}
 		nbDataBlocks = (correctedData & 0x3F) + 1;
 	}
 	else {
 		// 16 bits:  5 bits layers and 11 bits data blocks
 		nbLayers = (correctedData >> 11) + 1;
+		if (nbLayers <= 22 && (correctedData & 0x400)) { // ISO/IEC 24778:2008 Section 9 MSB artificially set
+			readerInit = true;
+			correctedData &= ~0x400;
+		}
 		nbDataBlocks = (correctedData & 0x7FF) + 1;
 	}
 	return true;
@@ -418,7 +428,7 @@ static PointI GetMatrixCenter(const BitMatrix& image)
 {
 	//Get a white rectangle that can be the border of the matrix in center bull's eye or
 	ResultPoint pointA, pointB, pointC, pointD;
-	if (!WhiteRectDetector::Detect(image, pointA, pointB, pointC, pointD)) {
+	if (!DetectWhiteRect(image, 4, image.width() / 2, image.height() / 2, pointA, pointB, pointC, pointD)) {
 		// This exception can be in case the initial rectangle is white
 		// In that case, surely in the bull's eye, we try to expand the rectangle.
 		int cx = image.width() / 2;
@@ -436,7 +446,7 @@ static PointI GetMatrixCenter(const BitMatrix& image)
 	// Redetermine the white rectangle starting from previously computed center.
 	// This will ensure that we end up with a white rectangle in center bull's eye
 	// in order to compute a more accurate center.
-	if (!WhiteRectDetector::Detect(image, 15, cx, cy, pointA, pointB, pointC, pointD)) {
+	if (!DetectWhiteRect(image, 4, cx, cy, pointA, pointB, pointC, pointD)) {
 		// This exception can be in case the initial rectangle is white
 		// In that case we try to expand the rectangle.
 		pointA = GetFirstDifferent(image, { cx + 7, cy - 7 }, false, 1, -1);
@@ -452,15 +462,20 @@ static PointI GetMatrixCenter(const BitMatrix& image)
 	return{ cx, cy };
 }
 
+static PointI GetMatrixCenterPure(const BitMatrix& image)
+{
+	int left, top, width, height;
+	if (!image.findBoundingBox(left, top, width, height, 11))
+		return {};
+	return {left + width / 2, top + height / 2};
+}
+
 static int GetDimension(bool compact, int nbLayers)
 {
 	if (compact) {
 		return 4 * nbLayers + 11;
 	}
-	if (nbLayers <= 4) {
-		return 4 * nbLayers + 15;
-	}
-	return 4 * nbLayers + 2 * ((nbLayers - 4) / 8 + 1) + 15;
+	return 4 * nbLayers + 2 * ((2 * nbLayers + 6) / 15) + 15;
 }
 
 /**
@@ -480,10 +495,10 @@ static ZXing::DetectorResult SampleGrid(const BitMatrix& image, const ResultPoin
 										   {topLeft, topRight, bottomRight, bottomLeft}});
 }
 
-DetectorResult Detector::Detect(const BitMatrix& image, bool isMirror)
+DetectorResult Detector::Detect(const BitMatrix& image, bool isMirror, bool isPure)
 {
 	// 1. Get the center of the aztec matrix
-	auto pCenter = GetMatrixCenter(image);
+	auto pCenter = isPure ? GetMatrixCenterPure(image) : GetMatrixCenter(image);
 
 	// 2. Get the center points of the four diagonal points just outside the bull's eye
 	//  [topRight, bottomRight, bottomLeft, topLeft]
@@ -501,8 +516,10 @@ DetectorResult Detector::Detect(const BitMatrix& image, bool isMirror)
 	// 3. Get the size of the matrix and other parameters from the bull's eye
 	int nbLayers = 0;
 	int nbDataBlocks = 0;
+	bool readerInit = false;
 	int shift = 0;
-	if (!ExtractParameters(image, bullsEyeCorners, compact, nbCenterLayers, nbLayers, nbDataBlocks, shift)) {
+	if (!ExtractParameters(image, bullsEyeCorners, compact, nbCenterLayers, nbLayers, nbDataBlocks, readerInit,
+						   shift)) {
 		return {};
 	}
 
@@ -510,8 +527,7 @@ DetectorResult Detector::Detect(const BitMatrix& image, bool isMirror)
 	return {SampleGrid(image, bullsEyeCorners[(shift + 0) % 4], bullsEyeCorners[(shift + 1) % 4],
 					   bullsEyeCorners[(shift + 2) % 4], bullsEyeCorners[(shift + 3) % 4], compact, nbLayers,
 					   nbCenterLayers),
-			compact, nbDataBlocks, nbLayers};
+			compact, nbDataBlocks, nbLayers, readerInit};
 }
 
-} // Aztec
-} // ZXing
+} // namespace ZXing::Aztec

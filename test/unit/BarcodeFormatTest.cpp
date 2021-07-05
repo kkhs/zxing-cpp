@@ -13,11 +13,12 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
-#include "gtest/gtest.h"
 
 #include "BarcodeFormat.h"
-#include <vector>
+
+#include "gtest/gtest.h"
 #include <stdexcept>
+#include <vector>
 
 using namespace ZXing;
 
@@ -25,6 +26,7 @@ TEST(BarcodeFormatTest, BarcodeFormat)
 {
 	EXPECT_EQ(ToString(BarcodeFormat::QRCode), std::string("QRCode"));
 	EXPECT_EQ(ToString(BarcodeFormat::None), std::string("None"));
+	EXPECT_EQ(ToString(BarcodeFormat::DataMatrix | BarcodeFormat::EAN13), std::string("DataMatrix|EAN-13"));
 
 	EXPECT_EQ(BarcodeFormat::EAN8, BarcodeFormatFromString("EAN_8"));
 	EXPECT_EQ(BarcodeFormat::EAN8, BarcodeFormatFromString("EAN-8"));

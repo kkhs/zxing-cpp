@@ -16,21 +16,18 @@
 */
 
 #include "QRReader.h"
-#include "QRDecoder.h"
-#include "QRDetector.h"
-#include "QRDecoderMetadata.h"
-#include "Result.h"
+
+#include "BinaryBitmap.h"
+#include "DecodeHints.h"
 #include "DecoderResult.h"
 #include "DetectorResult.h"
-#include "ResultPoint.h"
-#include "DecodeHints.h"
-#include "BinaryBitmap.h"
-#include "BitMatrix.h"
+#include "QRDecoder.h"
+#include "QRDetector.h"
+#include "Result.h"
 
 #include <utility>
 
-namespace ZXing {
-namespace QRCode {
+namespace ZXing::QRCode {
 
 Reader::Reader(const DecodeHints& hints)
 	: _tryHarder(hints.tryHarder()), _isPure(hints.isPure()), _charset(hints.characterSet())
@@ -45,11 +42,11 @@ Reader::decode(const BinaryBitmap& image) const
 		return Result(DecodeStatus::NotFound);
 	}
 
-	auto detectorResult = Detector::Detect(*binImg, _tryHarder, _isPure);
+	auto detectorResult = Detect(*binImg, _tryHarder, _isPure);
 	if (!detectorResult.isValid())
 		return Result(DecodeStatus::NotFound);
 
-	auto decoderResult = Decoder::Decode(detectorResult.bits(), _charset);
+	auto decoderResult = Decode(detectorResult.bits(), _charset);
 	auto position = detectorResult.position();
 
 	// TODO: report the information that the symbol was mirrored back to the caller
@@ -58,5 +55,4 @@ Reader::decode(const BinaryBitmap& image) const
 	return Result(std::move(decoderResult), std::move(position), BarcodeFormat::QRCode);
 }
 
-} // QRCode
-} // ZXing
+} // namespace ZXing::QRCode

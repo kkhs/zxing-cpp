@@ -14,10 +14,12 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
-#include "gtest/gtest.h"
-#include "pdf417/PDFHighLevelEncoder.h"
-#include "pdf417/PDFCompaction.h"
+
 #include "CharacterSet.h"
+#include "pdf417/PDFCompaction.h"
+#include "pdf417/PDFHighLevelEncoder.h"
+
+#include "gtest/gtest.h"
 
 using namespace ZXing;
 using namespace ZXing::Pdf417;
@@ -56,4 +58,15 @@ TEST(PDF417HighLevelEncoderTest, EncodeByte)
 {
 	auto encoded = HighLevelEncoder::EncodeHighLevel(L"abcd", Compaction::BYTE, CharacterSet::UTF8);
 	EXPECT_EQ(encoded, std::vector<int>({ 0x39f, 0x1a, 0x385, 'a', 'b', 'c', 'd' }));
+}
+
+TEST(PDF417HighLevelEncoderTest, EncodeByteBINARYECI)
+{
+	auto encoded = HighLevelEncoder::EncodeHighLevel(L"\u00E9", Compaction::BYTE, CharacterSet::BINARY);
+	EXPECT_EQ(encoded, std::vector<int>({ 927, 899, 901, 0xe9 }));
+}
+
+TEST(PDF417HighLevelEncoderTest, EncodeByteUnknown)
+{
+	EXPECT_THROW(HighLevelEncoder::EncodeHighLevel(L"\u00E9", Compaction::BYTE, CharacterSet::Unknown), std::invalid_argument);
 }

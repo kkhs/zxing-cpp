@@ -14,11 +14,12 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
-#include "datamatrix/DMWriter.h"
+
+#include "BitMatrixIO.h"
+#include "DecoderResult.h"
 #include "datamatrix/DMDecoder.h"
 #include "datamatrix/DMSymbolShape.h"
-#include "DecoderResult.h"
-#include "BitMatrixIO.h"
+#include "datamatrix/DMWriter.h"
 
 #include <algorithm>
 #ifndef NDEBUG
@@ -36,7 +37,7 @@ namespace {
 		BitMatrix matrix = DataMatrix::Writer().setMargin(0).setShapeHint(shape).encode(data, 0, 0);
 		ASSERT_EQ(matrix.empty(), false);
 
-		DecoderResult res = DataMatrix::Decoder::Decode(matrix);
+		DecoderResult res = DataMatrix::Decode(matrix);
 #ifndef NDEBUG
 		if (!res.isValid() || data != res.text())
 			SaveAsPBM(matrix, "failed-datamatrix.pbm", 4);

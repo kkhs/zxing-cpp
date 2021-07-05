@@ -17,8 +17,8 @@
 
 #include "BitHacks.h"
 
-#include <type_traits>
 #include <iterator>
+#include <type_traits>
 
 namespace ZXing {
 
@@ -60,7 +60,7 @@ public:
 
 		iterator& operator++() noexcept
 		{
-			while (++_pos < BitHacks::HighestBitSet(_flags) && !(_pos & _flags))
+			while (++_pos < BitHacks::HighestBitSet(_flags) && !((1 << _pos) & _flags))
 				;
 			return *this;
 		}

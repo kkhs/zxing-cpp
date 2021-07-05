@@ -38,12 +38,12 @@ public:
 		: Quadrilateral(Point(tl), Point(tr), Point(br), Point(bl))
 	{}
 
-	inline constexpr Point topLeft() const noexcept { return at(0); }
-	inline constexpr Point topRight() const noexcept { return at(1); }
-	inline constexpr Point bottomRight() const noexcept { return at(2); }
-	inline constexpr Point bottomLeft() const noexcept { return at(3); }
+	constexpr Point topLeft() const noexcept { return at(0); }
+	constexpr Point topRight() const noexcept { return at(1); }
+	constexpr Point bottomRight() const noexcept { return at(2); }
+	constexpr Point bottomLeft() const noexcept { return at(3); }
 
-	inline double orientation() const
+	double orientation() const
 	{
 		auto centerLine = (topRight() + bottomRight()) - (topLeft() + bottomLeft());
 		if (centerLine == Point{})
@@ -92,9 +92,9 @@ bool IsConvex(const Quadrilateral<PointT>& poly)
 			return false;
 	}
 
-	// It turns out beeing convex is not enough to prevent a "numercial instability"
-	// that can cause the corners beeing projected inside the image boundaries but
-	// some points near the corners beeing projected outside. This has been observed
+	// It turns out being convex is not enough to prevent a "numerical instability"
+	// that can cause the corners being projected inside the image boundaries but
+	// some points near the corners being projected outside. This has been observed
 	// where one corner is almost in line with two others. The M/m ratio is below 2
 	// for the complete existing sample set. For very "skewed" QRCodes a value of
 	// around 3 is realistic. A value of 14 has been observed to trigger the

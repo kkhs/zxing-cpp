@@ -16,6 +16,7 @@
 */
 
 #include "Result.h"
+
 #include "DecoderResult.h"
 #include "TextDecoder.h"
 
@@ -24,38 +25,33 @@
 
 namespace ZXing {
 
-Result::Result(std::wstring&& text, Position&& position, BarcodeFormat format, ByteArray&& rawBytes)
-	: _format(format), _text(std::move(text)), _position(std::move(position)), _rawBytes(std::move(rawBytes))
+Result::Result(std::wstring&& text, Position&& position, BarcodeFormat format, ByteArray&& rawBytes,
+			   const bool readerInit)
+	: _format(format), _text(std::move(text)), _position(std::move(position)), _rawBytes(std::move(rawBytes)),
+	  _readerInit(readerInit)
 {
 	_numBits = Size(_rawBytes) * 8;
 }
 
-Result::Result(const std::string& text, int y, int xStart, int xStop, BarcodeFormat format, ByteArray&& rawBytes)
-	: Result(TextDecoder::FromLatin1(text), Line(y, xStart, xStop), format, std::move(rawBytes))
+Result::Result(const std::string& text, int y, int xStart, int xStop, BarcodeFormat format, ByteArray&& rawBytes,
+			   const bool readerInit)
+	: Result(TextDecoder::FromLatin1(text), Line(y, xStart, xStop), format, std::move(rawBytes), readerInit)
 {}
 
 Result::Result(DecoderResult&& decodeResult, Position&& position, BarcodeFormat format)
 	: _status(decodeResult.errorCode()), _format(format), _text(std::move(decodeResult).text()),
-	  _position(std::move(position)), _rawBytes(std::move(decodeResult).rawBytes()), _numBits(decodeResult.numBits())
+	  _position(std::move(position)), _rawBytes(std::move(decodeResult).rawBytes()), _numBits(decodeResult.numBits()),
+	  _ecLevel(decodeResult.ecLevel()), _sai(decodeResult.structuredAppend()), _readerInit(decodeResult.readerInit())
 {
-	if (!isValid())
-		return;
+	// TODO: keep that for one release so people get the deprecation warning with a still intact functionality
+	if (isPartOfSequence()) {
+		_metadata.put(ResultMetadata::STRUCTURED_APPEND_SEQUENCE, sequenceIndex());
+		_metadata.put(ResultMetadata::STRUCTURED_APPEND_CODE_COUNT, sequenceSize());
+		if (_format == BarcodeFormat::QRCode)
+			_metadata.put(ResultMetadata::STRUCTURED_APPEND_PARITY, std::stoi(sequenceId()));
+	}
 
-	//TODO: change ResultMetadata::put interface, so we can move from decodeResult?
-	const auto& byteSegments = decodeResult.byteSegments();
-	if (!byteSegments.empty()) {
-		metadata().put(ResultMetadata::BYTE_SEGMENTS, byteSegments);
-	}
-	const auto& ecLevel = decodeResult.ecLevel();
-	if (!ecLevel.empty()) {
-		metadata().put(ResultMetadata::ERROR_CORRECTION_LEVEL, ecLevel);
-	}
-	if (decodeResult.hasStructuredAppend()) {
-		metadata().put(ResultMetadata::STRUCTURED_APPEND_SEQUENCE, decodeResult.structuredAppendSequenceNumber());
-		metadata().put(ResultMetadata::STRUCTURED_APPEND_CODE_COUNT, decodeResult.structuredAppendCodeCount());
-		metadata().put(ResultMetadata::STRUCTURED_APPEND_PARITY, decodeResult.structuredAppendParity());
-	}
-	//TODO: what about the other optional data in DecoderResult?
+	// TODO: add type opaque and code specific 'extra data'? (see DecoderResult::extra())
 }
 
 int Result::orientation() const

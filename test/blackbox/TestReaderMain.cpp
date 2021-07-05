@@ -15,22 +15,16 @@
 * limitations under the License.
 */
 
-#include "ByteArray.h"
 #include "BlackboxTestRunner.h"
 #include "ImageLoader.h"
-#include "MultiFormatReader.h"
-#include "Result.h"
-#include "BinaryBitmap.h"
-#include "ImageLoader.h"
-#include "DecodeHints.h"
 #include "TextUtfEncoding.h"
 #include "ZXContainerAlgorithms.h"
 #include "ZXFilesystem.h"
 
 #include <cstdlib>
 #include <cstring>
-#include <iostream>
 #include <fstream>
+#include <iostream>
 #include <set>
 
 using namespace ZXing;
@@ -55,14 +49,13 @@ int main(int argc, char** argv)
 		auto hints = DecodeHints().setTryHarder(!getEnv("FAST", false)).setTryRotate(true).setIsPure(getEnv("IS_PURE"));
 		if (getenv("FORMATS"))
 			hints.setFormats(BarcodeFormatsFromString(getenv("FORMATS")));
-		MultiFormatReader reader(hints);
 		int rotation = getEnv("ROTATION");
 
 		for (int i = 1; i < argc; ++i) {
-			Result result = reader.read(*ImageLoader::load(argv[i]).rotated(rotation));
+			Result result = ReadBarcode(ImageLoader::load(argv[i]).rotated(rotation), hints);
 			std::cout << argv[i] << ": ";
 			if (result.isValid())
-				std::cout << ToString(result.format()) << ": " << TextUtfEncoding::ToUtf8(result.text()) << " " << metadataToUtf8(result) << "\n";
+				std::cout << ToString(result.format()) << ": " << TextUtfEncoding::ToUtf8(result.text()) << "\n";
 			else
 				std::cout << "FAILED\n";
 			if (result.isValid() && getenv("WRITE_TEXT")) {

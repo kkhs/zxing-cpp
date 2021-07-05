@@ -16,17 +16,17 @@
 */
 
 #include "QRWriter.h"
-#include "QRErrorCorrectionLevel.h"
-#include "QREncoder.h"
-#include "QREncodeResult.h"
+
 #include "BitMatrix.h"
 #include "CharacterSet.h"
+#include "QREncodeResult.h"
+#include "QREncoder.h"
+#include "QRErrorCorrectionLevel.h"
 
 #include <stdexcept>
 #include <utility>
 
-namespace ZXing {
-namespace QRCode {
+namespace ZXing::QRCode {
 
 static const int QUIET_ZONE_SIZE = 4;
 
@@ -51,9 +51,8 @@ Writer::encode(const std::wstring& contents, int width, int height) const
 		throw std::invalid_argument("Requested dimensions are invalid");
 	}
 
-	EncodeResult code = Encoder::Encode(contents, _ecLevel, _encoding, _version, _useGs1Format, _maskPattern);
+	EncodeResult code = Encode(contents, _ecLevel, _encoding, _version, _useGs1Format, _maskPattern);
 	return Inflate(std::move(code.matrix), width, height, _margin);
 }
 
-} // QRCode
-} // ZXing
+} // namespace ZXing::QRCode

@@ -14,76 +14,18 @@
  * limitations under the License.
  */
 
-#include "ReadBarcode.h"
+#include "ZXingQtReader.h"
 
 #include <QDebug>
-#include <QImage>
 
-// This is some sample code to start a discussion about how a minimal and header-only Qt wrapper/helper could look like.
-
-namespace ZXing {
-namespace Qt {
-
-using ZXing::DecodeHints;
-using ZXing::BarcodeFormat;
-using ZXing::BarcodeFormats;
-using ZXing::Binarizer;
-
-template <typename T, typename _ = decltype(ToString(T()))>
-QDebug operator<<(QDebug dbg, const T& v)
-{
-	return dbg.noquote() << QString::fromStdString(ToString(v));
-}
-
-class Result : private ZXing::Result
-{
-public:
-	explicit Result(ZXing::Result&& r) : ZXing::Result(std::move(r)) {}
-
-	using ZXing::Result::format;
-	using ZXing::Result::isValid;
-	using ZXing::Result::status;
-
-	inline QString text() const { return QString::fromWCharArray(ZXing::Result::text().c_str()); }
-};
-
-Result ReadBarcode(const QImage& img, const DecodeHints& hints = {})
-{
-	auto ImgFmtFromQImg = [](const QImage& img) {
-		switch (img.format()) {
-		case QImage::Format_ARGB32:
-		case QImage::Format_RGB32:
-#if Q_BYTE_ORDER == Q_LITTLE_ENDIAN
-			return ImageFormat::BGRX;
-#else
-			return ImageFormat::XRGB;
-#endif
-		case QImage::Format_RGB888: return ImageFormat::RGB;
-		case QImage::Format_RGBX8888:
-		case QImage::Format_RGBA8888: return ImageFormat::RGBX;
-		case QImage::Format_Grayscale8: return ImageFormat::Lum;
-		default: return ImageFormat::None;
-		}
-	};
-
-	auto exec = [&](const QImage& img) {
-		return Result(ZXing::ReadBarcode({img.bits(), img.width(), img.height(), ImgFmtFromQImg(img)}, hints));
-	};
-
-	return ImgFmtFromQImg(img) == ImageFormat::None ? exec(img.convertToFormat(QImage::Format_RGBX8888)) : exec(img);
-}
-
-} // namespace Qt
-} // namespace ZXing
-
-using namespace ZXing::Qt;
+using namespace ZXingQt;
 
 int main(int argc, char* argv[])
 {
 	QString filePath = argv[1];
 
 	auto hints = DecodeHints()
-					 .setFormats(BarcodeFormat::QRCode | BarcodeFormat::DataMatrix)
+					 .setFormats(BarcodeFormat::QRCode)
 					 .setTryRotate(false)
 					 .setBinarizer(Binarizer::FixedThreshold);
 

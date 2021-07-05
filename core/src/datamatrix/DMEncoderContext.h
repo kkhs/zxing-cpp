@@ -15,14 +15,15 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
+
+#include "ByteArray.h"
+#include "DMSymbolInfo.h"
+#include "DMSymbolShape.h"
+#include "ZXContainerAlgorithms.h"
+
+#include <stdexcept>
 #include <string>
 #include <utility>
-#include <stdexcept>
-#include "ByteArray.h"
-#include "DMSymbolShape.h"
-#include "DMSymbolInfo.h"
-#include "ZXContainerAlgorithms.h"
-#include "ZXStrConvWorkaround.h"
 
 namespace ZXing {
 namespace DataMatrix {

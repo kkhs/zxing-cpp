@@ -17,17 +17,18 @@
 */
 
 #include "DMDetector.h"
+
 #include "BitMatrix.h"
 #include "BitMatrixCursor.h"
+#include "ByteMatrix.h"
 #include "DetectorResult.h"
+#include "GridSampler.h"
+#include "LogMatrix.h"
+#include "Point.h"
 #include "RegressionLine.h"
 #include "ResultPoint.h"
-#include "GridSampler.h"
-#include "Point.h"
 #include "Scope.h"
 #include "WhiteRectDetector.h"
-
-#include "LogMatrix.h"
 
 #include <algorithm>
 #include <array>
@@ -39,8 +40,7 @@
 #include <utility>
 #include <vector>
 
-namespace ZXing {
-namespace DataMatrix {
+namespace ZXing::DataMatrix {
 
 /**
 * The following code is the 'old' code by Sean Owen based on the Java upstream project.
@@ -105,13 +105,13 @@ static ResultPointsAndTransitions TransitionsBetween(const BitMatrix& image, con
 	return ResultPointsAndTransitions{ &from, &to, transitions };
 }
 
-inline static bool IsValidPoint(const ResultPoint& p, int imgWidth, int imgHeight)
+static bool IsValidPoint(const ResultPoint& p, int imgWidth, int imgHeight)
 {
 	return p.x() >= 0 && p.x() < imgWidth && p.y() > 0 && p.y() < imgHeight;
 }
 
 template <typename T>
-inline static float RoundToNearestF(T x)
+static float RoundToNearestF(T x)
 {
 	return static_cast<float>(std::round(x));
 }
@@ -260,7 +260,7 @@ static void OrderByBestPatterns(const ResultPoint*& p0, const ResultPoint*& p1, 
 static DetectorResult DetectOld(const BitMatrix& image)
 {
 	ResultPoint pointA, pointB, pointC, pointD;
-	if (!WhiteRectDetector::Detect(image, pointA, pointB, pointC, pointD)) {
+	if (!DetectWhiteRect(image, pointA, pointB, pointC, pointD)) {
 		return {};
 	}
 
@@ -359,7 +359,7 @@ static DetectorResult DetectOld(const BitMatrix& image)
 
 	ResultPoint correctedTopRight;
 
-	// Rectanguar symbols are 6x16, 6x28, 10x24, 10x32, 14x32, or 14x44. If one dimension is more
+	// Rectangular symbols are 6x16, 6x28, 10x24, 10x32, 14x32, or 14x44. If one dimension is more
 	// than twice the other, it's certainly rectangular, but to cut a bit more slack we accept it as
 	// rectangular if the bigger side is at least 7/4 times the other:
 	if (4 * dimensionTop >= 7 * dimensionRight || 4 * dimensionRight >= 7 * dimensionTop) {
@@ -430,9 +430,13 @@ class DMRegressionLine : public RegressionLine
 public:
 	void reverse() { std::reverse(_points.begin(), _points.end()); }
 
-	double modules(PointF beg, PointF end) const
+	double modules(PointF beg, PointF end)
 	{
 		assert(_points.size() > 3);
+
+		// re-evaluate and filter out all points too far away. required for the gapSizes calculation.
+		evaluate(1.0, true);
+
 		std::vector<double> gapSizes;
 		gapSizes.reserve(_points.size());
 
@@ -491,9 +495,9 @@ class EdgeTracer : public BitMatrixCursorF
 							p = centered(pEdge);
 
 							if (history && maxStepSize == 1) {
-								if (history->get(p))
+								if (history->get(PointI(p)) == state)
 									return StepResult::CLOSED_END;
-								history->set(p);
+								history->set(PointI(p), state);
 							}
 
 							return StepResult::FOUND;
@@ -510,7 +514,8 @@ class EdgeTracer : public BitMatrixCursorF
 	}
 
 public:
-	BitMatrix* history = nullptr;
+	ByteMatrix* history = nullptr;
+	int state = 0;
 
 	using BitMatrixCursorF::BitMatrixCursor;
 
@@ -552,7 +557,10 @@ public:
 		line.setDirectionInward(dEdge);
 		int gaps = 0;
 		do {
+			// detect an endless loop (lack of progress). if encountered, please report.
 			assert(line.points().empty() || p != line.points().back());
+			if (!line.points().empty() && p == line.points().back())
+				return false;
 			log(p);
 
 			// if we drifted too far outside of the code, break
@@ -657,6 +665,7 @@ static DetectorResult Scan(EdgeTracer startTracer, std::array<DMRegressionLine, 
 
 		// follow left leg upwards
 		t.turnRight();
+		t.state = 1;
 		CHECK(t.traceLine(t.right(), lineL));
 		CHECK(t.traceCorner(t.right(), tl));
 		lineL.reverse();
@@ -664,6 +673,7 @@ static DetectorResult Scan(EdgeTracer startTracer, std::array<DMRegressionLine, 
 
 		// follow left leg downwards
 		t = startTracer;
+		t.state = 1;
 		t.setDirection(tlTracer.right());
 		CHECK(t.traceLine(t.left(), lineL));
 		if (!lineL.isValid())
@@ -672,6 +682,7 @@ static DetectorResult Scan(EdgeTracer startTracer, std::array<DMRegressionLine, 
 		CHECK(t.traceCorner(t.left(), bl));
 
 		// follow bottom leg right
+		t.state = 2;
 		CHECK(t.traceLine(t.left(), lineB));
 		if (!lineB.isValid())
 			t.updateDirectionFromOrigin(bl);
@@ -680,9 +691,9 @@ static DetectorResult Scan(EdgeTracer startTracer, std::array<DMRegressionLine, 
 
 		auto lenL = distance(tl, bl) - 1;
 		auto lenB = distance(bl, br) - 1;
-		CHECK(lenL >= 10 && lenB >= 10 && lenB >= lenL / 4 && lenB <= lenL * 8);
+		CHECK(lenL >= 8 && lenB >= 10 && lenB >= lenL / 4 && lenB <= lenL * 18);
 
-		auto maxStepSize = static_cast<int>(lenB / 5 + 1); // datamatrix dim is at least 10x10
+		auto maxStepSize = static_cast<int>(lenB / 5 + 1); // datamatrix bottom dim is at least 10
 
 		// at this point we found a plausible L-shape and are now looking for the b/w pattern at the top and right:
 		// follow top row right 'half way' (4 gaps), see traceGaps break condition with 'invalid' line
@@ -693,6 +704,7 @@ static DetectorResult Scan(EdgeTracer startTracer, std::array<DMRegressionLine, 
 
 		// follow up until we reach the top line
 		t.setDirection(up);
+		t.state = 3;
 		CHECK(t.traceGaps(t.left(), lineR, maxStepSize, lineT));
 		CHECK(t.traceCorner(t.left(), tr));
 
@@ -734,9 +746,11 @@ static DetectorResult Scan(EdgeTracer startTracer, std::array<DMRegressionLine, 
 		printf("dim: %d x %d\n", dimT, dimR);
 #endif
 
-		// if we have an invalid rectangular data matrix dimension, we try to parse it by assuming a square
-		// we use the dimension that is closer to an integral value
-		if (dimT < 2 * dimR || dimT > 4 * dimR)
+		// if we have an almost square (invalid rectangular) data matrix dimension, we try to parse it by assuming a
+		// square. we use the dimension that is closer to an integral value. all valid rectangular symbols differ in
+		// their dimension by at least 10 (here 5, see doubling below). Note: this is currently not required for the
+		// black-box tests to complete.
+		if (std::abs(dimT - dimR) < 5)
 			dimT = dimR = fracR < fracT ? dimR : dimT;
 
 		// the dimension is 2x the number of black/white transitions
@@ -780,11 +794,11 @@ static DetectorResult DetectNew(const BitMatrix& image, bool tryHarder, bool try
 	tryHarder = false;
 
 	// a history log to remember where the tracing already passed by to prevent a later trace from doing the same work twice
-	BitMatrix history;
+	ByteMatrix history;
 	if (tryHarder)
-		history = BitMatrix(image.width(), image.height());
+		history = ByteMatrix(image.width(), image.height());
 
-	// instanciate RegressionLine objects outside of Scan function to prevent repetitive std::vector allocations
+	// instantiate RegressionLine objects outside of Scan function to prevent repetitive std::vector allocations
 	std::array<DMRegressionLine, 4> lines;
 
 	constexpr int minSymbolSize = 8 * 2; // minimum realistic size in pixel: 8 modules x 2 pixels per module
@@ -827,36 +841,39 @@ static DetectorResult DetectNew(const BitMatrix& image, bool tryHarder, bool try
 */
 static DetectorResult DetectPure(const BitMatrix& image)
 {
-	const int minSize = 8; // datamatrix codes are at least 8x8 modules
 	int left, top, width, height;
-	if (!image.findBoundingBox(left, top, width, height, minSize)) {
+	if (!image.findBoundingBox(left, top, width, height, 8))
 		return {};
-	}
 
-	// find the first white pixel on the diagonal
-	int moduleSize = 1;
-	while (moduleSize < width / minSize && image.get(left + moduleSize, top))
-		++moduleSize;
-
-	int matrixWidth = width / moduleSize;
-	int matrixHeight = height / moduleSize;
-	if (matrixWidth < minSize || matrixHeight < minSize) {
+	BitMatrixCursorI cur(image, {left, top}, {0, 1});
+	if (cur.countEdges(height - 1) != 0)
 		return {};
-	}
+	cur.turnLeft();
+	if (cur.countEdges(width - 1) != 0)
+		return {};
+	cur.turnLeft();
+	int dimR = cur.countEdges(height - 1) + 1;
+	cur.turnLeft();
+	int dimT = cur.countEdges(width - 1) + 1;
 
-	// Push in the "border" by half the module width so that we start
-	// sampling in the middle of the module. Just in case the image is a
-	// little off, this will help recover.
-	int msh    = moduleSize / 2;
+	auto modSizeX = float(width) / dimT;
+	auto modSizeY = float(height) / dimR;
+	auto modSize = (modSizeX + modSizeY) / 2;
+
+	if (dimT % 2 != 0 || dimR % 2 != 0 || dimT < 10 || dimT > 144 || dimR < 8 || dimR > 144 ||
+		std::abs(modSizeX - modSizeY) > 1 ||
+		!image.isIn(PointF{left + modSizeX / 2 + (dimT - 1) * modSize, top + modSizeY / 2 + (dimR - 1) * modSize}))
+		return {};
+
 	int right  = left + width - 1;
 	int bottom = top + height - 1;
 
 	// Now just read off the bits (this is a crop + subsample)
-	return {Deflate(image, matrixWidth, matrixHeight, top + msh, left + msh, moduleSize),
+	return {Deflate(image, dimT, dimR, top + modSizeX / 2, left + modSizeY / 2, modSize),
 			{{left, top}, {right, top}, {right, bottom}, {left, bottom}}};
 }
 
-DetectorResult Detector::Detect(const BitMatrix& image, bool tryHarder, bool tryRotate, bool isPure)
+DetectorResult Detect(const BitMatrix& image, bool tryHarder, bool tryRotate, bool isPure)
 {
 	if (isPure)
 		return DetectPure(image);
@@ -867,5 +884,4 @@ DetectorResult Detector::Detect(const BitMatrix& image, bool tryHarder, bool try
 	return result;
 }
 
-} // DataMatrix
-} // ZXing
+} // namespace ZXing::DataMatrix

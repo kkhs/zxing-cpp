@@ -16,14 +16,17 @@
 */
 
 #include "AZDecoder.h"
+
 #include "AZDetectorResult.h"
-#include "DecoderResult.h"
-#include "ReedSolomonDecoder.h"
-#include "GenericGF.h"
-#include "DecodeStatus.h"
-#include "BitMatrix.h"
 #include "BitArray.h"
+#include "BitMatrix.h"
+#include "CharacterSetECI.h"
+#include "DecoderResult.h"
+#include "DecodeStatus.h"
+#include "GenericGF.h"
+#include "ReedSolomonDecoder.h"
 #include "TextDecoder.h"
+#include "TextUtfEncoding.h"
 #include "ZXTestSupport.h"
 
 #include <algorithm>
@@ -33,8 +36,7 @@
 #include <string>
 #include <vector>
 
-namespace ZXing {
-namespace Aztec {
+namespace ZXing::Aztec {
 
 enum class Table {
 	UPPER,
@@ -62,7 +64,7 @@ static const char* MIXED_TABLE[] = {
 };
 
 static const char* PUNCT_TABLE[] = {
-	"", "\r", "\r\n", ". ", ", ", ": ", "!", "\"", "#", "$", "%", "&", "'", "(", ")",
+	"FLGN", "\r", "\r\n", ". ", ", ", ": ", "!", "\"", "#", "$", "%", "&", "'", "(", ")",
 	"*", "+", ",", "-", ".", "/", ":", ";", "<", "=", ">", "?", "[", "]", "{", "}", "CTRL_UL"
 };
 
@@ -70,7 +72,7 @@ static const char* DIGIT_TABLE[] = {
 	"CTRL_PS", " ", "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", ",", ".", "CTRL_UL", "CTRL_US"
 };
 
-inline static int TotalBitsInLayer(int layers, bool compact)
+static int TotalBitsInLayer(int layers, bool compact)
 {
 	return ((compact ? 88 : 112) + 16 * layers) * layers;
 }
@@ -185,7 +187,7 @@ static bool CorrectBits(const DetectorResult& ddata, const std::vector<bool>& ra
 		dataWords[i] = ReadCode(rawbits, offset, codewordSize);
 	}
 
-	if (!ReedSolomonDecoder::Decode(*gf, dataWords, numECCodewords))
+	if (!ReedSolomonDecode(*gf, dataWords, numECCodewords))
 		return false;
 
 	// Now perform the unstuffing operation.
@@ -269,19 +271,75 @@ static const char* GetCharacter(Table table, int code)
 }
 
 /**
+* See ISO/IEC 24778:2008 Section 10.1
+*/
+static int ParseECIValue(const std::vector<bool>& correctedBits, const int flg, const int endIndex, int& index)
+{
+	int eci = 0;
+	for (int i = 0; i < flg && endIndex - index >= 4; i++) {
+		eci *= 10;
+		eci += ReadCode(correctedBits, index, 4) - 2;
+		index += 4;
+	}
+	return eci;
+}
+
+/**
+* See ISO/IEC 24778:2008 Section 8
+*/
+static void ParseStructuredAppend(std::wstring& resultEncoded, StructuredAppendInfo& sai)
+{
+	std::wstring id;
+	int i = 0;
+
+	if (resultEncoded[0] == ' ') { // Space-delimited id
+		std::string::size_type sp = resultEncoded.find(' ', 1);
+		if (sp == std::string::npos) {
+			return;
+		}
+		id = resultEncoded.substr(1, sp - 1); // Strip space delimiters
+		i = sp + 1;
+	}
+	if (i + 1 >= (int)resultEncoded.size() || resultEncoded[i] < 'A' || resultEncoded[i] > 'Z'
+			|| resultEncoded[i + 1] < 'A' || resultEncoded[i + 1] > 'Z') {
+		return;
+	}
+	sai.index = resultEncoded[i] - 'A';
+	sai.count = resultEncoded[i + 1] - 'A' + 1;
+
+	if (sai.count == 1 || sai.count <= sai.index) { // If info doesn't make sense
+		sai.count = 0; // Choose to mark count as unknown
+	}
+
+	if (!id.empty()) {
+		TextUtfEncoding::ToUtf8(id, sai.id);
+	}
+
+	resultEncoded.erase(0, i + 2); // Remove
+}
+
+/**
 * Gets the string encoded in the aztec code bits
 *
 * @return the decoded string
 */
 ZXING_EXPORT_TEST_ONLY
-std::string GetEncodedData(const std::vector<bool>& correctedBits)
+std::wstring GetEncodedData(const std::vector<bool>& correctedBits, const std::string& characterSet,
+							StructuredAppendInfo& sai)
 {
 	int endIndex = Size(correctedBits);
 	Table latchTable = Table::UPPER; // table most recently latched to
 	Table shiftTable = Table::UPPER; // table to use for the next read
 	std::string result;
 	result.reserve(20);
+	std::wstring resultEncoded;
 	int index = 0;
+	CharacterSet encoding = CharacterSetECI::InitEncoding(characterSet);
+
+	// Check for Structured Append - need 4 5-bit words, beginning with ML UL, ending with index and count
+	bool haveStructuredAppend = endIndex > 20 && ReadCode(correctedBits, 0, 5) == 29 // ML (UPPER table)
+									&& ReadCode(correctedBits, 5, 5) == 29; // UL (MIXED table)
+
 	while (index < endIndex) {
 		if (shiftTable == Table::BINARY) {
 			if (endIndex - index < 5) {
@@ -327,6 +385,25 @@ std::string GetEncodedData(const std::vector<bool>& correctedBits)
 					latchTable = shiftTable;
 				}
 			}
+			else if (std::strcmp(str, "FLGN") == 0) {
+				if (endIndex - index < 3) {
+					break;
+				}
+				int flg = ReadCode(correctedBits, index, 3);
+				index += 3;
+				if (flg == 0) {
+					// TODO: Handle FNC1
+				}
+				else if (flg <= 6) {
+					// FLG(1) to FLG(6) ECI
+					encoding = CharacterSetECI::OnChangeAppendReset(ParseECIValue(correctedBits, flg, endIndex, index),
+																	resultEncoded, result, encoding);
+				}
+				else {
+					// FLG(7) is invalid
+				}
+				shiftTable = latchTable;
+			}
 			else {
 				result.append(str);
 				// Go back to whatever mode we had been in
@@ -334,7 +411,13 @@ std::string GetEncodedData(const std::vector<bool>& correctedBits)
 			}
 		}
 	}
-	return result;
+	TextDecoder::Append(resultEncoded, reinterpret_cast<const uint8_t*>(result.data()), result.size(), encoding);
+
+	if (haveStructuredAppend && !resultEncoded.empty()) {
+		ParseStructuredAppend(resultEncoded, sai);
+	}
+
+	return resultEncoded;
 }
 
 /**
@@ -361,19 +444,21 @@ static ByteArray ConvertBoolArrayToByteArray(const std::vector<bool>& boolArr)
 	return byteArr;
 }
 
-DecoderResult Decoder::Decode(const DetectorResult& detectorResult)
+DecoderResult Decoder::Decode(const DetectorResult& detectorResult, const std::string& characterSet)
 {
 	std::vector<bool> rawbits = ExtractBits(detectorResult);
 	std::vector<bool> correctedBits;
+	StructuredAppendInfo sai;
 	if (CorrectBits(detectorResult, rawbits, correctedBits)) {
 		return DecoderResult(ConvertBoolArrayToByteArray(correctedBits),
-							 TextDecoder::FromLatin1(GetEncodedData(correctedBits)))
-		        .setNumBits(Size(correctedBits));
+							 GetEncodedData(correctedBits, characterSet, sai))
+		        .setNumBits(Size(correctedBits))
+				.setStructuredAppend(sai)
+				.setReaderInit(detectorResult.readerInit());
 	}
 	else {
 		return DecodeStatus::FormatError;
 	}
 }
 
-} // Aztec
-} // ZXing
+} // namespace ZXing::Aztec

@@ -15,18 +15,19 @@
 */
 
 #include "TextEncoder.h"
+
 #include "CharacterSet.h"
 #include "TextUtfEncoding.h"
-#include "textcodec/JPTextEncoder.h"
+#include "ZXContainerAlgorithms.h"
 #include "textcodec/Big5TextEncoder.h"
 #include "textcodec/GBTextEncoder.h"
+#include "textcodec/JPTextEncoder.h"
 #include "textcodec/KRTextEncoder.h"
-#include "ZXContainerAlgorithms.h"
 
+#include <algorithm>
 #include <cstddef>
 #include <cstdint>
 #include <stdexcept>
-#include <algorithm>
 
 namespace ZXing {
 
@@ -212,6 +213,7 @@ TextEncoder::GetBytes(const std::wstring& str, CharacterSet charset, std::string
 	{
 	case CharacterSet::Unknown:
 	case CharacterSet::ISO8859_1:
+	case CharacterSet::BINARY:
 		bytes.reserve(str.length());
 		for (wchar_t c : str) {
 			if (c <= 0xff) {
@@ -255,7 +257,7 @@ TextEncoder::GetBytes(const std::wstring& str, CharacterSet charset, std::string
 	case CharacterSet::GB2312: GBTextEncoder::EncodeGB2312(str, bytes); break;
 	case CharacterSet::GB18030: GBTextEncoder::EncodeGB18030(str, bytes); break;
 	case CharacterSet::EUC_JP: JPTextEncoder::EncodeEUCJP(str, bytes); break;
-	case CharacterSet::EUC_KR: KRTextDecoder::EncodeEucKr(str, bytes); break;
+	case CharacterSet::EUC_KR: KRTextEncoder::EncodeEucKr(str, bytes); break;
 	case CharacterSet::UTF8: TextUtfEncoding::ToUtf8(str, bytes); break;
 	default: break;
 	}

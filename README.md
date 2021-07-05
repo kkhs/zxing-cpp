@@ -9,11 +9,12 @@ It was originally ported from the Java [ZXing Library](https://github.com/zxing/
 ## Features
 
 * In pure C++17, no third-party dependencies
-* Stateless, thread-safe readers/generators
-* Wrapper to create WinRT component
-* Wrapper for Android
-* Wrapper for WebAssembly
-* Python binding
+* Stateless, thread-safe readers/scanners and writers/generators
+* Wrapper/Bindings for:
+  * WinRT
+  * Android
+  * WebAssembly
+  * [Python](wrappers/python/README.md)
 
 ## Supported Formats
 
@@ -57,12 +58,8 @@ PM> Install-Package huycn.zxingcpp.winrt
 
 ### Standard setup on Windows/macOS/Linux
 1. Make sure [CMake](https://cmake.org) version 3.10 or newer is installed.
-2. Make sure a C++17 compliant compiler is installed (minimum VS 2017 15.7 / gcc 7 / clang 5)
+2. Make sure a C++17 compliant compiler is installed (minimum VS 2019 16.8 / gcc 7 / clang 5)
 3. See the cmake `BUILD_...` options to enable the testing code, python wrapper, etc.
-
-### Windows GDIPlus wrapper
-1. Open CMake GUI, specify [`wrappers/gdiplus`](wrappers/gdiplus) as source folder in the first input, specify the build output in the second input, and click on Generate.
-2. At prompt, select "Visual Studio 15 2017" (or "Visual Studio 15 2017 Win64" if you want to build for x64 platform); leave the second input (Optional toolset...) empty; leave "Use default native compilers" checked; and click on Finish to generate the VS project. At the end, you will get a solution (.sln) in your binary output directory that you can open in VS. The project ZXingGdiPlus in the solution will generate a static library.
 
 ### Windows Universal Platform
 1. Download and install [CMake](https://cmake.org) 3.4 or more recent if it's not already installed.
@@ -70,12 +67,10 @@ PM> Install-Package huycn.zxingcpp.winrt
 3. Double-click on the batch script to run it.
 4. If the build succeeds, it will put the results in the folder UAP which is ready-to-use SDK extension.
 
-### Android NDK
-Note: The original Java-only [ZXing](https://github.com/zxing/zxing) project has a very good support for Android, whether you want to use it as external app via Intent or directly integrated into your app. You should consider using it first before trying this library since involving with native code is always more complex than Java-only code. Performance-wise, except for specific usecases, you won't notice the difference!
-
-1. Edit [`wrappers/android/jni/Application.mk`](wrappers/android/jni/Application.mk) and adjust for your project.
-2. On command line, `cd` into [`wrappers/android/jni`](wrappers/android/jni), type `ndk-build` (or `ndk-build -j <number of your CPU cores>`)
-3. Copy files in `libs` and `java` into corresponding folders of your Android project.
+### Android
+1. Install AndroidStudio including NDK and CMake (see 'SDK Tools').
+2. Open the project in folder [wrappers/android](wrappers/android).
+3. The project contains 2 modules: `zxingcpp` is the wrapper library, `app` is the demo app using `zxingcpp`
 
 ### WebAssembly
 1. [Install Emscripten](https://kripken.github.io/emscripten-site/docs/getting_started/) if not done already.

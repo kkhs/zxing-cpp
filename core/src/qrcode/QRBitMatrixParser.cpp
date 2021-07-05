@@ -16,28 +16,30 @@
 */
 
 #include "QRBitMatrixParser.h"
-#include "QRVersion.h"
-#include "QRFormatInformation.h"
-#include "QRDataMask.h"
+
+#include "BitArray.h"
 #include "BitMatrix.h"
 #include "ByteArray.h"
-#include "BitArray.h"
+#include "QRDataMask.h"
+#include "QRFormatInformation.h"
+#include "QRVersion.h"
 
-namespace ZXing {
-namespace QRCode {
+#include <utility>
 
-inline bool getBit(const BitMatrix& bitMatrix, int x, int y, bool mirrored)
+namespace ZXing::QRCode {
+
+static bool getBit(const BitMatrix& bitMatrix, int x, int y, bool mirrored)
 {
 	return mirrored ? bitMatrix.get(y, x) : bitMatrix.get(x, y);
 }
 
-static inline bool hasValidDimension(const BitMatrix& bitMatrix)
+static bool hasValidDimension(const BitMatrix& bitMatrix)
 {
 	int dimension = bitMatrix.height();
 	return dimension >= 21 && dimension <= 177 && (dimension % 4) == 1;
 }
 
-const Version* BitMatrixParser::ReadVersion(const BitMatrix& bitMatrix)
+const Version* ReadVersion(const BitMatrix& bitMatrix)
 {
 	if (!hasValidDimension(bitMatrix))
 		return nullptr;
@@ -64,8 +66,7 @@ const Version* BitMatrixParser::ReadVersion(const BitMatrix& bitMatrix)
 	return nullptr;
 }
 
-FormatInformation
-BitMatrixParser::ReadFormatInformation(const BitMatrix& bitMatrix, bool mirrored)
+FormatInformation ReadFormatInformation(const BitMatrix& bitMatrix, bool mirrored)
 {
 	if (!hasValidDimension(bitMatrix))
 		return {};
@@ -93,16 +94,7 @@ BitMatrixParser::ReadFormatInformation(const BitMatrix& bitMatrix, bool mirrored
 	return FormatInformation::DecodeFormatInformation(formatInfoBits1, formatInfoBits2);
 }
 
-/**
-* <p>Reads the bits in the {@link BitMatrix} representing the finder pattern in the
-* correct order in order to reconstruct the codewords bytes contained within the
-* QR Code.</p>
-*
-* @return bytes encoded within the QR Code
-* @throws FormatException if the exact number of bytes expected is not read
-*/
-ByteArray
-BitMatrixParser::ReadCodewords(const BitMatrix& bitMatrix, const Version& version, int maskIndex, bool mirrored)
+ByteArray ReadCodewords(const BitMatrix& bitMatrix, const Version& version, int maskIndex, bool mirrored)
 {
 	if (!hasValidDimension(bitMatrix))
 		return {};
@@ -143,5 +135,4 @@ BitMatrixParser::ReadCodewords(const BitMatrix& bitMatrix, const Version& versio
 	return result;
 }
 
-} // QRCode
-} // ZXing
+} // namespace ZXing::QRCode

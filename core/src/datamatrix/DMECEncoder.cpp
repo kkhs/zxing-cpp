@@ -16,17 +16,16 @@
 */
 
 #include "DMECEncoder.h"
-#include "DMSymbolInfo.h"
-#include "ByteArray.h"
-#include "ZXStrConvWorkaround.h"
 
+#include "ByteArray.h"
+#include "DMSymbolInfo.h"
+
+#include <algorithm>
+#include <array>
 #include <stdexcept>
 #include <string>
-#include <array>
-#include <algorithm>
 
-namespace ZXing {
-namespace DataMatrix {
+namespace ZXing::DataMatrix {
 
 /**
 * Precomputed polynomial factors for ECC 200.
@@ -101,13 +100,14 @@ static const uint8_t ALOG[] = {
 	  3,   6,  12,  24,  48,  96, 192, 173, 119, 238, 241, 207, 179,  75, 150,   1,
 };
 
-static inline uint8_t mult(uint8_t a, uint8_t b)
+static uint8_t mult(uint8_t a, uint8_t b)
 {
 	if(a == 0 || b == 0)
 		return 0;
 	return ALOG[(LOG[a] + LOG[b]) % 255];
 }
 
+//TODO: replace this duplicated code with ReedSolomonEncoder
 static void CreateECCBlock(ByteArray& data, int codeOffset, int codeLength, int eccOffset, int eccLength, int stride)
 {
 	// binary search for the poly vector with length numECWords
@@ -128,15 +128,7 @@ static void CreateECCBlock(ByteArray& data, int codeOffset, int codeLength, int 
 		data[eccOffset + i * stride] = ecc[eccLength - 1 - i];
 }
 
-/**
-* Creates the ECC200 error correction for an encoded message.
-*
-* @param codewords  the codewords
-* @param symbolInfo information about the symbol to be encoded
-* @return the codewords with interleaved error correction.
-*/
-void
-ECEncoder::EncodeECC200(ByteArray& codewords, const SymbolInfo& symbolInfo)
+void EncodeECC200(ByteArray& codewords, const SymbolInfo& symbolInfo)
 {
 	if (codewords.size() != (size_t)symbolInfo.dataCapacity()) {
 		throw std::invalid_argument("The number of codewords does not match the selected symbol");
@@ -153,6 +145,4 @@ ECEncoder::EncodeECC200(ByteArray& codewords, const SymbolInfo& symbolInfo)
 	}
 }
 
-
-} // DataMatrix
-} // ZXing
+} // namespace ZXing::DataMatrix

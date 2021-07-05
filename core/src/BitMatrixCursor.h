@@ -65,8 +65,7 @@ public:
 	template <typename T>
 	Value testAt(PointT<T> p) const
 	{
-		auto q = PointI(p);
-		return img->isIn(q) ? Value{img->get(q)} : Value{};
+		return img->isIn(p) ? Value{img->get(p)} : Value{};
 	}
 
 	bool blackAt(POINT pos) const noexcept { return testAt(pos).isBlack(); }
@@ -105,8 +104,15 @@ public:
 
 	bool step(typename POINT::value_t s = 1)
 	{
-		p = p + s * d;
+		p += s * d;
 		return isIn(p);
+	}
+
+	BitMatrixCursor<POINT> movedBy(POINT d) const
+	{
+		auto res = *this;
+		res.p += d;
+		return res;
 	}
 
 	/**
@@ -117,14 +123,20 @@ public:
 	 */
 	int stepToEdge(int nth = 1, int range = 0)
 	{
+		// TODO: provide an alternative and faster out-of-bounds check than isIn() inside testAt()
 		int sum = 0;
-		bool v = isBlack();
-		for (int i = 0; i < nth && (!range || sum < range) && (++sum, step());)
-			if (v != isBlack()) {
-				v = !v;
-				++i;
+		auto lv = testAt(p);
+
+		while (nth && (!range || sum < range) && lv.isValid()) {
+			step();
+			++sum;
+			auto v = testAt(p);
+			if (lv != v) {
+				lv = v;
+				--nth;
 			}
-		return sum * (!range || sum < range) * isIn(p + back());
+		}
+		return sum * (nth == 0);
 	}
 
 	bool stepAlongEdge(Direction dir, bool skipCorner = false)
@@ -150,6 +162,18 @@ public:
 		return ret;
 	}
 
+	int countEdges(int range = 0)
+	{
+		int res = 0;
+
+		while (int steps = stepToEdge(1, range)) {
+			range -= steps;
+			++res;
+		}
+
+		return res;
+	}
+
 	template<typename ARRAY>
 	ARRAY readPattern(int range = 0)
 	{
@@ -157,6 +181,14 @@ public:
 		for (auto& i : res)
 			i = stepToEdge(1, range);
 		return res;
+	}
+
+	template<typename ARRAY>
+	ARRAY readPatternFromBlack(int maxWhitePrefix, int range = 0)
+	{
+		if (maxWhitePrefix && isWhite() && !stepToEdge(1, maxWhitePrefix))
+			return {};
+		return readPattern<ARRAY>(range);
 	}
 };
 

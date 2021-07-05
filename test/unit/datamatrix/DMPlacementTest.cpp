@@ -14,16 +14,15 @@
 * See the License for the specific language governing permissions and
 * limitations under the License.
 */
-#include "gtest/gtest.h"
+
 #include "BitMatrixIO.h"
 #include "ByteArray.h"
-#include "datamatrix/DMDefaultPlacement.h"
+#include "datamatrix/DMBitLayout.h"
 
+#include "gtest/gtest.h"
 #include <algorithm>
-#include <sstream>
 #include <iterator>
-
-  //private static final Pattern SPACE = Pattern.compile(" ");
+#include <sstream>
 
 using namespace ZXing;
 using namespace ZXing::DataMatrix;
@@ -41,7 +40,7 @@ namespace {
 TEST(DMPlacementTest, Placement)
 {
     auto codewords = Unvisualize("66 74 78 66 74 78 129 56 35 102 192 96 226 100 156 1 107 221"); //"AIMAIM" encoded
-    auto matrix = DefaultPlacement::Place(codewords, 12, 12);
+    auto matrix = BitMatrixFromCodewords(codewords, 12, 12);
     std::string expected =
         "011100001111\n"
         "001010101000\n"
