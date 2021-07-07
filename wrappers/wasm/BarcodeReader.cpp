@@ -37,6 +37,7 @@ ReadResult readBarcodeFromPixmap(int bufferPtr, int imgWidth, int imgHeight, boo
 		hints.setTryHarder(tryHarder);
 		hints.setTryRotate(tryHarder);
 		hints.setFormats(BarcodeFormatsFromString(format));
+		hints.setCharacterSet("SJIS");
 
 		auto result =
 			ReadBarcode({reinterpret_cast<uint8_t*>(bufferPtr), imgWidth, imgHeight, ImageFormat::RGBX}, hints);
