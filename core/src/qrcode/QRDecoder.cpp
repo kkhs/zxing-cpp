@@ -161,7 +161,7 @@ DecodeByteSegment(BitSource& bits, int count, CharacterSet currentCharset, const
 		}
 		if (currentCharset == CharacterSet::Unknown)
 		{
-			currentCharset = TextDecoder::GuessEncoding(readBytes.data(), Size(readBytes));
+			currentCharset = CharacterSet::Shift_JIS;
 		}
 	}
 	TextDecoder::Append(result, readBytes.data(), Size(readBytes), currentCharset);
